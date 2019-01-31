@@ -2,24 +2,26 @@
 // license. Its contents can be found at:
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package bindata
+package xbindata
 
 import (
 	"bytes"
 	"fmt"
 	"go/format"
 	"io"
+	"path"
 	"sort"
 	"strings"
 )
 
 type assetTree struct {
 	Asset    Asset
+	Path     string
 	Children map[string]*assetTree
 }
 
 func newAssetTree() *assetTree {
-	tree := &assetTree{}
+	tree := &assetTree{Path: "."}
 	tree.Children = make(map[string]*assetTree)
 	return tree
 }
@@ -28,6 +30,7 @@ func (node *assetTree) child(name string) *assetTree {
 	rv, ok := node.Children[name]
 	if !ok {
 		rv = newAssetTree()
+		rv.Path = path.Join(node.Path, name)
 		// TODO: maintain this in sorted order
 		node.Children[name] = rv
 	}
@@ -57,31 +60,35 @@ func (root *assetTree) funcOrNil() string {
 
 func (root *assetTree) writeGoMap(buf *bytes.Buffer, nident int) {
 	buf.Grow(35) // at least this size
-	fmt.Fprintf(buf, "&bintree{%s, map[string]*bintree{", root.funcOrNil())
+	if root.Asset.Func != "" {
+		_, _ = fmt.Fprintf(buf, "%s", root.Asset.Func)
+	} else {
+		_, _ = fmt.Fprintf(buf, "bc.NewDir(%d, %q, map[string]bc.Node{", nident, root.Path)
 
-	if len(root.Children) > 0 {
-		buf.WriteByte('\n')
+		if len(root.Children) > 0 {
+			buf.WriteByte('\n')
 
-		// Sort to make output stable between invocations
-		filenames := make([]string, len(root.Children))
-		i := 0
-		for filename := range root.Children {
-			filenames[i] = filename
-			i++
+			// Sort to make output stable between invocations
+			filenames := make([]string, len(root.Children))
+			i := 0
+			for filename := range root.Children {
+				filenames[i] = filename
+				i++
+			}
+			sort.Strings(filenames)
+
+			for _, p := range filenames {
+				ident(buf, nident+1)
+				buf.WriteByte('"')
+				buf.WriteString(p)
+				buf.WriteString(`": `)
+				root.Children[p].writeGoMap(buf, nident+1)
+			}
+			ident(buf, nident)
 		}
-		sort.Strings(filenames)
 
-		for _, p := range filenames {
-			ident(buf, nident+1)
-			buf.WriteByte('"')
-			buf.WriteString(p)
-			buf.WriteString(`": `)
-			root.Children[p].writeGoMap(buf, nident+1)
-		}
-		ident(buf, nident)
+		buf.WriteString("})")
 	}
-
-	buf.WriteString("}}")
 	if nident > 0 {
 		buf.WriteByte(',')
 	}
@@ -89,12 +96,8 @@ func (root *assetTree) writeGoMap(buf *bytes.Buffer, nident int) {
 }
 
 func (root *assetTree) WriteAsGoMap(w io.Writer) error {
-	_, err := w.Write([]byte(`type bintree struct {
-	Func     func() (*asset, error)
-	Children map[string]*bintree
-}
-
-var _bintree = `))
+	_, err := w.Write([]byte(`
+var _root bc.NodeDir = `))
 	if err != nil {
 		return err
 	}
@@ -109,45 +112,6 @@ var _bintree = `))
 }
 
 func writeTOCTree(w io.Writer, toc []Asset) error {
-	_, err := w.Write([]byte(`// AssetDir returns the file names below a certain
-// directory embedded in the file by go-bindata.
-// For example if you run go-bindata on data/... and data contains the
-// following hierarchy:
-//     data/
-//       foo.txt
-//       img/
-//         a.png
-//         b.png
-// then AssetDir("data") would return []string{"foo.txt", "img"},
-// AssetDir("data/img") would return []string{"a.png", "b.png"},
-// AssetDir("foo.txt") and AssetDir("notexist") would return an error, and
-// AssetDir("") will return []string{"data"}.
-func AssetDir(name string) ([]string, error) {
-	node := _bintree
-	if len(name) != 0 {
-		canonicalName := strings.Replace(name, "\\", "/", -1)
-		pathList := strings.Split(canonicalName, "/")
-		for _, p := range pathList {
-			node = node.Children[p]
-			if node == nil {
-				return nil, fmt.Errorf("Asset %s not found", name)
-			}
-		}
-	}
-	if node.Func != nil {
-		return nil, fmt.Errorf("Asset %s not found", name)
-	}
-	rv := make([]string, 0, len(node.Children))
-	for childName := range node.Children {
-		rv = append(rv, childName)
-	}
-	return rv, nil
-}
-
-`))
-	if err != nil {
-		return err
-	}
 	tree := newAssetTree()
 	for i := range toc {
 		pathList := strings.Split(toc[i].Name, "/")
@@ -157,17 +121,19 @@ func AssetDir(name string) ([]string, error) {
 }
 
 // writeTOC writes the table of contents file.
-func writeTOC(buf *bytes.Buffer, toc []Asset) error {
+func writeTOC(c *Config, buf *bytes.Buffer, toc []Asset) error {
 	writeTOCHeader(buf)
 
+	var start int64
 	for i := range toc {
 		if i != 0 {
 			// Newlines between elements make gofmt happy.
 			buf.WriteByte('\n')
 		}
-		if err := writeTOCAsset(buf, &toc[i]); err != nil {
+		if err := writeTOCAsset(c, start, buf, &toc[i]); err != nil {
 			return err
 		}
+		start += toc[i].Size
 	}
 
 	writeTOCFooter(buf)
@@ -176,109 +142,26 @@ func writeTOC(buf *bytes.Buffer, toc []Asset) error {
 
 // writeTOCHeader writes the table of contents file header.
 func writeTOCHeader(buf *bytes.Buffer) {
-	buf.WriteString(`// Asset loads and returns the asset for the given name.
-// It returns an error if the asset could not be found or
-// could not be loaded.
-func Asset(name string) ([]byte, error) {
-	canonicalName := strings.Replace(name, "\\", "/", -1)
-	if f, ok := _bindata[canonicalName]; ok {
-		a, err := f()
-		if err != nil {
-			return nil, fmt.Errorf("Asset %s can't read by error: %v", name, err)
-		}
-		return a.bytes, nil
-	}
-	return nil, fmt.Errorf("Asset %s not found", name)
-}
-
-// AssetString returns the asset contents as a string (instead of a []byte).
-func AssetString(name string) (string, error) {
-	data, err := Asset(name)
-	return string(data), err
-}
-
-// MustAsset is like Asset but panics when Asset would return an error.
-// It simplifies safe initialization of global variables.
-func MustAsset(name string) []byte {
-	a, err := Asset(name)
-	if err != nil {
-		panic("asset: Asset(" + name + "): " + err.Error())
-	}
-
-	return a
-}
-
-// MustAssetString is like AssetString but panics when Asset would return an
-// error. It simplifies safe initialization of global variables.
-func MustAssetString(name string) string {
-	return string(MustAsset(name))
-}
-
-// AssetInfo loads and returns the asset info for the given name.
-// It returns an error if the asset could not be found or
-// could not be loaded.
-func AssetInfo(name string) (os.FileInfo, error) {
-	canonicalName := strings.Replace(name, "\\", "/", -1)
-	if f, ok := _bindata[canonicalName]; ok {
-		a, err := f()
-		if err != nil {
-			return nil, fmt.Errorf("AssetInfo %s can't read by error: %v", name, err)
-		}
-		return a.info, nil
-	}
-	return nil, fmt.Errorf("AssetInfo %s not found", name)
-}
-
-// AssetDigest returns the digest of the file with the given name. It returns an
-// error if the asset could not be found or the digest could not be loaded.
-func AssetDigest(name string) ([sha256.Size]byte, error) {
-	canonicalName := strings.Replace(name, "\\", "/", -1)
-	if f, ok := _bindata[canonicalName]; ok {
-		a, err := f()
-		if err != nil {
-			return [sha256.Size]byte{}, fmt.Errorf("AssetDigest %s can't read by error: %v", name, err)
-		}
-		return a.digest, nil
-	}
-	return [sha256.Size]byte{}, fmt.Errorf("AssetDigest %s not found", name)
-}
-
-// Digests returns a map of all known files and their checksums.
-func Digests() (map[string][sha256.Size]byte, error) {
-	mp := make(map[string][sha256.Size]byte, len(_bindata))
-	for name := range _bindata {
-		a, err := _bindata[name]()
-		if err != nil {
-			return nil, err
-		}
-		mp[name] = a.digest
-	}
-	return mp, nil
-}
-
-// AssetNames returns the names of the assets.
-func AssetNames() []string {
-	names := make([]string, 0, len(_bindata))
-	for name := range _bindata {
-		names = append(names, name)
-	}
-	return names
-}
-
-// _bindata is a table, holding each asset generator, mapped to its name.
-var _bindata = map[string]func() (*asset, error){
+	buf.WriteString(`
+// Assets is a table, holding each asset generator, mapped to its name.
+var Assets = bc.NewAssets(
 `)
 }
 
 // writeTOCAsset writes a TOC entry for the given asset.
-func writeTOCAsset(w io.Writer, asset *Asset) error {
-	_, err := fmt.Fprintf(w, "\t%q: %s,\n", asset.Name, asset.Func)
+func writeTOCAsset(c *Config, start int64, w io.Writer, asset *Asset) error {
+	code, err := asset.SourceCode(c, start)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write([]byte("\t" + code + ","))
 	return err
 }
 
 // writeTOCFooter writes the table of contents file footer.
 func writeTOCFooter(buf *bytes.Buffer) {
-	buf.WriteString(`}
+	buf.WriteString(`
+)
 
 `)
 }

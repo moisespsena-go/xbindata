@@ -2,7 +2,7 @@
 // license. Its contents can be found at:
 // https://creativecommons.org/publicdomain/zero/1.0/
 
-package bindata
+package xbindata
 
 import (
 	"fmt"
@@ -36,6 +36,7 @@ func writeDebugHeader(w io.Writer) error {
 	"os"
 	"path/filepath"
 	"strings"
+	"github.com/moisespsena-go/xbindata/xbindatacommon"
 )
 
 // bindataRead reads the given file from disk. It returns an error on failure.

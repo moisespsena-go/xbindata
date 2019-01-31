@@ -12,10 +12,10 @@ all:
 
 $(DIFFER):
 ifeq ($(UNAME), Darwin)
-	curl --silent --location --output $(GOPATH)/bin/differ https://github.com/kevinburke/differ/releases/download/0.5/differ-darwin-amd64 && chmod 755 $(GOPATH)/bin/differ
+	curl --silent --location --output $(GOPATH)/bin/differ https://github.com/moisespsena-go/differ/releases/download/0.5/differ-darwin-amd64 && chmod 755 $(GOPATH)/bin/differ
 endif
 ifeq ($(UNAME), Linux)
-	curl --silent --location --output $(GOPATH)/bin/differ https://github.com/kevinburke/differ/releases/download/0.5/differ-linux-amd64 && chmod 755 $(GOPATH)/bin/differ
+	curl --silent --location --output $(GOPATH)/bin/differ https://github.com/moisespsena-go/differ/releases/download/0.5/differ-linux-amd64 && chmod 755 $(GOPATH)/bin/differ
 endif
 
 diff-testdata: | $(DIFFER)
@@ -41,13 +41,13 @@ test: go-test
 race-test: lint go-race-test
 	$(MAKE) -C testdata
 
-$(GOPATH)/bin/go-bindata:
+$(GOPATH)/bin/bindata:
 	go install -v ./...
 
 $(BENCHSTAT):
 	go get golang.org/x/perf/cmd/benchstat
 
-bench: $(GOPATH)/bin/go-bindata | $(BENCHSTAT)
+bench: $(GOPATH)/bin/bindata | $(BENCHSTAT)
 	go list ./... | grep -v vendor | xargs go test -benchtime=5s -bench=. -run='^$$' 2>&1 | $(BENCHSTAT) /dev/stdin
 
 $(WRITE_MAILMAP):
@@ -62,7 +62,7 @@ authors: AUTHORS.txt
 
 ci: lint go-race-test diff-testdata
 
-# Ensure you have updated go-bindata/version.go manually.
+# Ensure you have updated bindata/version.go manually.
 release: | $(RELEASE) race-test diff-testdata
 ifndef version
 	@echo "Please provide a version"

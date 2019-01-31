@@ -1,4 +1,4 @@
-package bindata_test
+package xbindata_test
 
 import (
 	"go/format"
@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	bindata "github.com/kevinburke/go-bindata"
+	bindata "github.com/moisespsena-go/xbindata"
 )
 
 func dirSize(path string) (int64, error) {
@@ -32,7 +32,7 @@ func BenchmarkBindata(b *testing.B) {
 		Input: []bindata.InputConfig{
 			{Path: "testdata/benchmark", Recursive: true},
 		},
-		Output:     "testdata/assets/bindata.go",
+		Output:     "testdata/assets/xbindata.go",
 		NoMemCopy:  false,
 		NoCompress: true,
 		Debug:      false,
@@ -53,7 +53,7 @@ var formatSink []byte
 
 func BenchmarkFormatSource(b *testing.B) {
 	// https://github.com/golang/go/issues/26528
-	// unformatted.out is any large go-bindata source file.
+	// unformatted.out is any large xbindata source file.
 	data, err := ioutil.ReadFile("testdata/unformatted.out")
 	if os.IsNotExist(err) {
 		b.Skip("source file does not exist")

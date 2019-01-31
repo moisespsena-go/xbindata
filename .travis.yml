@@ -1,4 +1,4 @@
-go_import_path: github.com/kevinburke/go-bindata
+go_import_path: github.com/moisespsena-go/xbindata
 
 language: go
 

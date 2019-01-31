@@ -6,7 +6,7 @@
 // hack for old Windows/Plan 9 builds removed; if you are using those systems,
 // it is OK if you don't have atomic rewrites.
 
-package bindata
+package xbindata
 
 import (
 	"crypto/rand"
@@ -36,7 +36,7 @@ func makeTempName(origname, prefix string) (tempname string, err error) {
 		return "", os.ErrInvalid
 	}
 	// Generate 10 random bytes.
-	// This gives 80 bits of entropy, good enough
+	// This gives 80 Bits of entropy, good enough
 	// for making temporary file name unpredictable.
 	var rnd [10]byte
 	if _, err := rand.Read(rnd[:]); err != nil {

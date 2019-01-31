@@ -2,13 +2,15 @@
 // license. Its contents can be found at:
 // http://creativecommons.org/publicdomain/zero/1.0/
 
-package bindata
+package xbindata
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/gobwas/glob"
 )
 
 // InputConfig defines options on a asset directory to be convert.
@@ -38,7 +40,7 @@ type Config struct {
 	Input []InputConfig
 
 	// Output defines the output file for the generated code.
-	// If left empty, this defaults to 'bindata.go' in the current
+	// If left empty, this defaults to 'xbindata.go' in the current
 	// working directory.
 	Output string
 
@@ -46,12 +48,12 @@ type Config struct {
 	// file names when generating the keys in the table of contents.
 	// For example, running without the `-prefix` flag, we get:
 	//
-	// 	$ go-bindata /path/to/templates
+	// 	$ xbindata /path/to/templates
 	// 	go_bindata["/path/to/templates/foo.html"] = _path_to_templates_foo_html
 	//
 	// Running with the `-prefix` flag, we get:
 	//
-	// 	$ go-bindata -prefix "/path/to/" /path/to/templates/foo.html
+	// 	$ xbindata -prefix "/path/to/" /path/to/templates/foo.html
 	// 	go_bindata["templates/foo.html"] = templates_foo_html
 	Prefix string
 
@@ -133,6 +135,8 @@ type Config struct {
 	Mode uint
 	// When nonzero, use this as unix timestamp for all files.
 	ModTime int64
+	// When nonzero, use this as unix timestamp for all files.
+	ChangeTime int64
 
 	// Ignores any filenames matching the regex pattern specified, e.g.
 	// path/to/file.ext will ignore only that file, or \\.gitignore
@@ -140,6 +144,30 @@ type Config struct {
 	//
 	// This parameter can be provided multiple times.
 	Ignore []*regexp.Regexp
+
+	// Ignores any filenames matching the glob pattern specified, e.g.
+	// path/to/*.ext will ignore only that file, or \\.gitignore
+	// will match any .gitignore file.
+	// See <https://github.com/gobwas/glob> for more glob info.
+	//
+	// This parameter can be provided multiple times.
+	IgnoreGlob []glob.Glob
+
+	// Create File System.
+	//
+	// This parameter provides `AssetFS` variable.
+	FileSystem bool
+
+	// Embed assets content into binary file. Do not compile it.
+	Embed bool
+
+	// EmbedArchive save asset contents into him. If is blank, use the application binary.
+	EmbedArchive string
+
+	// EmbedArchiveTruncate truncate existing archive.
+	EmbedArchiveTruncate bool
+
+	EmbedPreInitSource string
 }
 
 // NewConfig returns a default configuration struct.
@@ -149,7 +177,7 @@ func NewConfig() *Config {
 	c.NoMemCopy = false
 	c.NoCompress = false
 	c.Debug = false
-	c.Output = "./bindata.go"
+	c.Output = "./xbindata.go"
 	c.Ignore = make([]*regexp.Regexp, 0)
 	return c
 }
@@ -174,7 +202,7 @@ func (c *Config) validate() error {
 			return fmt.Errorf("Unable to determine current working directory.")
 		}
 
-		c.Output = filepath.Join(cwd, "bindata.go")
+		c.Output = filepath.Join(cwd, "xbindata.go")
 	}
 
 	stat, err := os.Lstat(c.Output)

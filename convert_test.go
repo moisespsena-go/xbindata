@@ -1,4 +1,4 @@
-package bindata
+package xbindata
 
 import (
 	"regexp"

@@ -3,7 +3,7 @@
 // http://creativecommons.org/publicdomain/zero/1.0/
 
 /*
-bindata converts any file into managable Go source code. Useful for
+xbindata converts any file into managable Go source code. Useful for
 embedding binary data into a go program. The file data is optionally gzip
 compressed before being converted to a raw byte slice.
 
@@ -25,11 +25,11 @@ will not have to care where the actual data comes from.
 
 An example is a Go webserver with some embedded, static web content like
 HTML, JS and CSS files. While developing it, you do not want to rebuild the
-whole server and restart it every time you make a change to a bit of
+whole server and restart it every time you make a change to a Bit of
 javascript. You just want to build and launch the server once. Then just press
 refresh in the browser to see those changes. Embedding the assets with the
 `debug` flag allows you to do just that. When you are finished developing and
-ready for deployment, just re-invoke `go-bindata` without the `-debug` flag.
+ready for deployment, just re-invoke `xbindata` without the `-debug` flag.
 It will now embed the latest version of the assets.
 
 
@@ -96,7 +96,7 @@ The default behaviour of the program is to use compression.
 Path prefix stripping
 
 The keys used in the `_bindata` map are the same as the input file name
-passed to `go-bindata`. This includes the path. In most cases, this is not
+passed to `xbindata`. This includes the path. In most cases, this is not
 desireable, as it puts potentially sensitive information in your code base.
 For this purpose, the tool supplies another command line flag `-prefix`.
 This accepts a portion of a path name, which should be stripped off from
@@ -104,13 +104,13 @@ the map keys and function names.
 
 For example, running without the `-prefix` flag, we get:
 
-	$ go-bindata /path/to/templates/
+	$ xbindata /path/to/templates/
 
 	_bindata["/path/to/templates/foo.html"] = path_to_templates_foo_html
 
 Running with the `-prefix` flag, we get:
 
-	$ go-bindata -prefix "/path/to/" /path/to/templates/
+	$ xbindata -prefix "/path/to/" /path/to/templates/
 
 	_bindata["templates/foo.html"] = templates_foo_html
 
@@ -126,4 +126,4 @@ The tags are appended to a `// +build` line in the beginning of the output file
 and must follow the build tags syntax specified by the go tool.
 
 */
-package bindata
+package xbindata

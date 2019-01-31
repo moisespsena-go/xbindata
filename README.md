@@ -1,6 +1,6 @@
 ## bindata
 
-*This fork is maintained by Kevin Burke. Don't expect many new features, though
+*This fork is maintained by Moises P. Sena. Don't expect many new features, though
 I will take a look at PR's. Changes made include:*
 
 - Atomic writes; generated file cannot be read while partially complete.
@@ -19,32 +19,23 @@ mechanisms.
 
 - Some errors in file writes were unchecked, but are now checked.
 
+- Asset File System
+
 This package converts any file into manageable Go source code. Useful for
 embedding binary data into a go program. The file data is optionally gzip
 compressed before being converted to a raw byte slice.
 
-It comes with a command line tool in the `go-bindata` subdirectory. This tool
+It comes with a command line tool in the `xbindata` subdirectory. This tool
 offers a set of command line options, used to customize the output being
 generated.
 
 
 ### Installation
 
-On Macs, you can install the binary using [Homebrew](https://brew.sh):
+Using GO! installation:
 
 ```
-brew install go-bindata
-```
-
-Binary installs for every language are provided by `equinox.io`. Install
-go-bindata for your platform by following the instructions here:
-https://go.equinox.io/github.com/kevinburke/go-bindata/go-bindata
-
-Alternatively, you can download the source code, if you have a working Go
-installation:
-
-```
-go get -u github.com/kevinburke/go-bindata/...
+go get -u github.com/moisespsena-go/xbindata/...
 ```
 
 ### Usage
@@ -53,34 +44,34 @@ Conversion is done on one or more sets of files. They are all embedded in a new
 Go source file, along with a table of contents and an `Asset` function,
 which allows quick access to the asset, based on its name.
 
-The simplest invocation generates a `bindata.go` file in the current
+The simplest invocation generates a `xbindata.go` file in the current
 working directory. It includes all assets from the `data` directory.
 
-	$ go-bindata data/
+	$ xbindata data/
 
 To include all input sub-directories recursively, use the ellipsis postfix
 as defined for Go import paths. Otherwise it will only consider assets in the
 input directory itself.
 
-	$ go-bindata data/...
+	$ xbindata data/...
 
 To specify the name of the output file being generated, use the `-o` option:
 
-	$ go-bindata -o myfile.go data/
+	$ xbindata -o myfile.go data/
 
 Multiple input directories can be specified if necessary.
 
-	$ go-bindata dir1/... /path/to/dir2/... dir3
+	$ xbindata dir1/... /path/to/dir2/... dir3
 
 
 The following paragraphs detail some of the command line options which can be
-supplied to `go-bindata`. Refer to the `testdata/out` directory for various
+supplied to `xbindata`. Refer to the `testdata/out` directory for various
 output examples from the assets in `testdata/in`. Each example uses different
 command line options.
 
 To ignore files, pass in regexes using -ignore, for example:
 
-    $ go-bindata -ignore=\\.gitignore data/...
+    $ xbindata -ignore=\\.gitignore data/...
 
 ### Accessing an asset
 
@@ -113,7 +104,7 @@ whole server and restart it every time you make a change to a bit of
 javascript. You just want to build and launch the server once. Then just press
 refresh in the browser to see those changes. Embedding the assets with the
 `debug` flag allows you to do just that. When you are finished developing and
-ready for deployment, just re-invoke `go-bindata` without the `-debug` flag.
+ready for deployment, just re-invoke `xbindata` without the `-debug` flag.
 It will now embed the latest version of the assets.
 
 
@@ -180,11 +171,20 @@ even increase the size of the data.
 
 The default behaviour of the program is to use compression.
 
+### File System
+
+When the `-fs` flag is given, the file system resource is available on `AssetFS` global variable.
+
+```go
+import "github.com/moisespsena/go-assetfs/api"
+
+var AssetFS api.Interface
+```
 
 ### Path prefix stripping
 
-The keys used in the `_bindata` map, are the same as the input file name
-passed to `go-bindata`. This includes the path. In most cases, this is not
+The keys used in the `assets` map, are the same as the input file name
+passed to `bindata`. This includes the path. In most cases, this is not
 desireable, as it puts potentially sensitive information in your code base.
 For this purpose, the tool supplies another command line flag `-prefix`.
 This accepts a portion of a path name, which should be stripped off from
@@ -192,15 +192,15 @@ the map keys and function names.
 
 For example, running without the `-prefix` flag, we get:
 
-	$ go-bindata /path/to/templates/
+	$ xbindata /path/to/templates/
 
-	_bindata["/path/to/templates/foo.html"] = path_to_templates_foo_html
+	assets["/path/to/templates/foo.html"] = path_to_templates_foo_html
 
 Running with the `-prefix` flag, we get:
 
-	$ go-bindata -prefix "/path/to/" /path/to/templates/
+	$ xbindata -prefix "/path/to/" /path/to/templates/
 
-	_bindata["templates/foo.html"] = templates_foo_html
+	assets["templates/foo.html"] = templates_foo_html
 
 ### Build tags
 
@@ -214,5 +214,5 @@ and must follow the build tags syntax specified by the go tool.
 
 ### Related projects
 
-[go-bindata-assetfs](https://github.com/elazarl/go-bindata-assetfs#readme) -
+[assetfs](https://github.com/moiespsena-go/assetfs#readme) -
 implements `http.FileSystem` interface. Allows you to serve assets with `net/http`.
