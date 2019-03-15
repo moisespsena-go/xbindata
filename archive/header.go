@@ -31,7 +31,7 @@ func (a *Header) DigestReader() func() [sha256.Size]byte {
 	}
 }
 
-func (a *Header) LoadDigest(baseDir string) error {
+func (a *Header) LoadDigest(baseDir string, allW ...io.Writer) error {
 	if a.digest != nil {
 		return nil
 	}
@@ -44,7 +44,8 @@ func (a *Header) LoadDigest(baseDir string) error {
 
 	h := sha256.New()
 	var n int64
-	if n, err = io.Copy(h, f); err != nil {
+	r := teereader{f, allW}
+	if n, err = io.Copy(h, r); err != nil {
 		return err
 	}
 	if n != a.Size() {
@@ -71,6 +72,23 @@ func (a *Header) Unmarshal(r io.Reader) (err error) {
 			var d [sha256.Size]byte
 			copy(d[:], b)
 			a.digest = &d
+		}
+	}
+	return
+}
+
+type teereader struct {
+	r   io.Reader
+	dst []io.Writer
+}
+
+func (t teereader) Read(p []byte) (n int, err error) {
+	n, err = t.r.Read(p)
+	if n > 0 {
+		for _, w := range t.dst {
+			if n, err := w.Write(p[:n]); err != nil {
+				return n, err
+			}
 		}
 	}
 	return

@@ -1,10 +1,18 @@
 package archive
 
 import (
+	"compress/gzip"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
+	"strings"
+	"time"
+
+	"github.com/dustin/go-humanize"
+	"github.com/moisespsena/go-path-helpers"
+	"github.com/op/go-logging"
 
 	"github.com/moisespsena-go/xbindata/xbreader"
 
@@ -13,11 +21,15 @@ import (
 	"github.com/moisespsena-go/xbindata/xbcommon"
 )
 
+var log = logging.MustGetLogger(path_helpers.GetCalledDir())
+
 type Archive struct {
 	Headers     Headers
 	HeadersSize int64
 	Path        string
 	Len         int
+	Hash        [sha256.Size]byte
+	BuildDate   time.Time
 }
 
 func New() *Archive {
@@ -32,11 +44,26 @@ func OpenFile(pth string) (archive *Archive, err error) {
 	return
 }
 
-func (archive *Archive) Read(r io.Reader) (err error) {
-	rc := &readCounter{Reader: r}
-	var i uint32
+func (archive *Archive) readHeaders(r io.Reader) (err error) {
+	hash := make([]byte, sha256.Size)
+	if _, err = r.Read(hash); err != nil {
+		err = fmt.Errorf("Read content hash failed: %v", err)
+	}
+	copy(archive.Hash[:], hash)
 
-	if err = binary.Read(rc, binary.BigEndian, &i); err != nil {
+	var (
+		i64 uint64
+		i   uint32
+	)
+	if err = binary.Read(r, binaryDir, &i64); err != nil {
+		err = fmt.Errorf("Read build time failed: %v", err)
+		return
+	}
+
+	t := time.Unix(int64(i64), 0)
+	archive.BuildDate = t
+
+	if err = binary.Read(r, binaryDir, &i); err != nil {
 		err = fmt.Errorf("Read headers count failed: %v", err)
 		return
 	}
@@ -47,23 +74,76 @@ func (archive *Archive) Read(r io.Reader) (err error) {
 		return
 	}
 
-	headers := make(Headers, int(i), int(i))
+	var headers = make(Headers, archive.Len, archive.Len)
 
 	for i := 0; i < archive.Len; i++ {
-		headers[i] = &Header{}
-		if err = headers[i].Unmarshal(rc); err != nil {
+		h := &Header{}
+		if err = h.Unmarshal(r); err != nil {
 			err = fmt.Errorf("Read headers %d failed: %v", i, err)
 			return
 		}
+		headers[i] = h
 	}
-
-	archive.HeadersSize = rc.count
 	archive.Headers = headers
+	return nil
+}
+
+func (archive *Archive) Read(r io.Reader) (err error) {
+	rc := &readCounter{Reader: r}
+	if err = archive.readHeaders(rc); err != nil {
+		return
+	}
+	archive.HeadersSize = rc.count
 	return
+}
+
+func (archive *Archive) Uncompress(pth string) (n int64, err error) {
+	s, err := os.Open(pth)
+	if err != nil {
+		return 0, err
+	}
+	defer s.Close()
+	dst := strings.TrimSuffix(pth, ".gz")
+	d, err := os.Create(dst)
+	if err != nil {
+		return 0, fmt.Errorf("Create %q failed: %v", pth, err)
+	}
+	defer d.Close()
+	gr, err := gzip.NewReader(s)
+	defer gr.Close()
+	if err != nil {
+		return 0, fmt.Errorf("Create Gzip Reader failed: %v", err)
+	}
+	n, err = io.Copy(d, gr)
+	if err != nil {
+		return 0, fmt.Errorf("Copy failed: %v", err)
+	}
+	return n, nil
 }
 
 func (archive *Archive) ReadFile(pth string) (err error) {
 	var f *os.File
+	if !strings.HasSuffix(pth, ".gz") {
+		pth += ".gz"
+	}
+
+	if _, err := os.Stat(pth); err == nil {
+		dpth := strings.TrimSuffix(pth, ".gz")
+		log.Infof("Uncompressing %q to %q", pth, dpth)
+		n, err := archive.Uncompress(pth)
+		if err != nil {
+			return fmt.Errorf("Uncompress %q to %q failed: %v", pth, dpth, err)
+		}
+		log.Infof("Uncompressing done. Destination size is %s", humanize.Bytes(uint64(n)))
+		if os.Getenv("XBINDATA_ARCHIVE_NOT_REMOVE_GZ") == "" {
+			os.Remove(pth)
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	pth = strings.TrimSuffix(pth, ".gz")
+
 	if f, err = os.Open(pth); err != nil {
 		return
 	}

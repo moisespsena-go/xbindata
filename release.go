@@ -273,6 +273,7 @@ func header_embed(w io.Writer, c *Config, toc []Asset) (err error) {
 		`br "github.com/moisespsena-go/xbindata/xbreader"`,
 		`"github.com/moisespsena-go/xbindata/archive"`,
 		"github.com/moisespsena/go-path-helpers",
+		"sync",
 		"regexp",
 		"strings",
 	); err != nil {
@@ -292,6 +293,8 @@ func header_embed(w io.Writer, c *Config, toc []Asset) (err error) {
 var (
 	StartPos int64
 	Assets   bc.Assets
+	_archive *archive.Archive
+    mu       sync.Mutex
 
 	pkg           = path_helpers.GetCalledDir()
 	envName       = "XBINDATA_ARCHIVE__" + strings.ToUpper(regexp.MustCompile("[\\W]+").ReplaceAllString(pkg, "_"))
@@ -312,22 +315,33 @@ func ArchivePath() string {
 	return archivePath
 }
 
+func Archive() (archiv *archive.Archive, err error) {
+	if _archive == nil {
+        mu.Lock()
+		defer mu.Unlock() 
+
+		if _archive, err = archive.OpenFile(archivePath); err != nil {
+			return
+		}
+	}
+	return _archive, nil
+}
+
 func init() {
 	` + c.EmbedPreInitSource + `
 	if archivePath == "" {
 		archivePath = ` + archive + `
 	}
-	`
+    Assets.Factory = func() (assets map[string]bc.Asset, err error) {`
 	data += `
-	archiv, err := archive.OpenFile(archivePath)
-	if err != nil {
-		panic(err)
-	}
+		archiv, err := Archive()
+		if err != nil {
+			return nil, err
+		}
     
-	m := archiv.AssetsMap(ReaderFactory)
-	Assets.Assets = &m`
-
-	data += `
+		return archiv.AssetsMap(ReaderFactory), nil`
+		data += `
+	}
 }
 `
 	_, err = fmt.Fprintf(w, data)

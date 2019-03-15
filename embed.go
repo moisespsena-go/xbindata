@@ -11,7 +11,6 @@ import (
 func embedWrite(w io.Writer, toc []Asset, c *Config) (err error) {
 	var imports string
 	var archive = c.EmbedArchive
-	var truncate string
 	if len(toc) > 0 {
 		imports = "\"os\""
 	}
@@ -25,6 +24,11 @@ func embedWrite(w io.Writer, toc []Asset, c *Config) (err error) {
 		prefix, _ = filepath.Abs(c.Prefix)
 	}
 
+	var gz string
+	if c.ArchiveGziped {
+		gz = "Gz"
+	}
+
 	_, err = w.Write([]byte(`package main
 
 import (
@@ -36,7 +40,7 @@ import (
 )
 
 func main() {
-	if err := headers.StoreFile(` + archive + `, baseDir` + truncate + `); err != nil {
+	if err := headers.StoreFile` + gz + `(` + archive + `, baseDir); err != nil {
 		panic(err)
 	}
 }

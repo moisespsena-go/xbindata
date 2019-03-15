@@ -177,7 +177,7 @@ func (fs *FileSystem) DumpFiles(cb func(info assetfsapi.FileInfo) error) error {
 	return fs.dump(true, cb)
 }
 
-func (fs *FileSystem) Dump(cb func(info assetfsapi.FileInfo) error) error {
+func (fs *FileSystem) Dump(cb func(info assetfsapi.FileInfo) error, ignore ...func(pth string) bool) error {
 	return fs.dump(false, cb)
 }
 

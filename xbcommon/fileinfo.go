@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+var BinaryDir = binary.BigEndian
+
 type FileInfo struct {
 	path       string
 	name       string
@@ -50,20 +52,20 @@ func (fi FileInfo) Sys() interface{} {
 }
 
 func (fi *FileInfo) Marshal(w io.Writer) (err error) {
-	if err = binary.Write(w, binary.BigEndian, fi.size); err != nil {
+	if err = binary.Write(w, BinaryDir, fi.size); err != nil {
 		return fmt.Errorf("Write Size: %v", err)
 	}
-	if err = binary.Write(w, binary.BigEndian, uint32(fi.mode)); err != nil {
+	if err = binary.Write(w, BinaryDir, uint32(fi.mode)); err != nil {
 		return fmt.Errorf("Write Mode: %v", err)
 	}
-	if err = binary.Write(w, binary.BigEndian, uint64(fi.modTime.UnixNano())); err != nil {
+	if err = binary.Write(w, BinaryDir, uint64(fi.modTime.UnixNano())); err != nil {
 		return fmt.Errorf("Write ModTime: %v", err)
 	}
-	if err = binary.Write(w, binary.BigEndian, uint64(fi.changeTime.UnixNano())); err != nil {
+	if err = binary.Write(w, BinaryDir, uint64(fi.changeTime.UnixNano())); err != nil {
 		return fmt.Errorf("Write ChangeTime: %v", err)
 	}
 	pth := filepath.ToSlash(fi.path)
-	if err = binary.Write(w, binary.BigEndian, uint32(len(pth))); err != nil {
+	if err = binary.Write(w, BinaryDir, uint32(len(pth))); err != nil {
 		return fmt.Errorf("Write Path Size: %v", err)
 	}
 	if _, err = w.Write([]byte(pth)); err != nil {
@@ -77,23 +79,23 @@ func (fi *FileInfo) Unmarshal(r io.Reader) (err error) {
 		i   uint32
 		i64 uint64
 	)
-	if err = binary.Read(r, binary.BigEndian, &fi.size); err != nil {
+	if err = binary.Read(r, BinaryDir, &fi.size); err != nil {
 		return fmt.Errorf("Read Size: %v", err)
 	}
-	if err = binary.Read(r, binary.BigEndian, &i); err != nil {
+	if err = binary.Read(r, BinaryDir, &i); err != nil {
 		return fmt.Errorf("Read Mode: %v", err)
 	}
 	fi.mode = os.FileMode(i)
 
-	if err = binary.Read(r, binary.BigEndian, &i64); err != nil {
+	if err = binary.Read(r, BinaryDir, &i64); err != nil {
 		return fmt.Errorf("Read ModTime: %v", err)
 	}
 	fi.modTime = time.Unix(0, int64(i64))
-	if err = binary.Read(r, binary.BigEndian, &i64); err != nil {
+	if err = binary.Read(r, BinaryDir, &i64); err != nil {
 		return fmt.Errorf("Read ChangeTime: %v", err)
 	}
 	fi.changeTime = time.Unix(0, int64(i64))
-	if err = binary.Read(r, binary.BigEndian, &i); err != nil {
+	if err = binary.Read(r, BinaryDir, &i); err != nil {
 		return fmt.Errorf("Read Path Size: %v", err)
 	}
 	var (

@@ -1,11 +1,14 @@
 package archive
 
 import (
+	"compress/gzip"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
 
@@ -17,11 +20,23 @@ import (
 
 type Headers []*Header
 
+var binaryDir = xbcommon.BinaryDir
+
 func (headers Headers) Store(w io.Writer, base string) (err error) {
+	cHash := sha256.New()
+
 	for i, asset := range headers {
-		if err = asset.LoadDigest(base); err != nil {
+		if err = asset.LoadDigest(base, cHash); err != nil {
 			return errwrap.Wrap(err, "Header[%d] Load Digest", i)
 		}
+	}
+
+	if _, err = w.Write(cHash.Sum(nil)); err != nil {
+		return fmt.Errorf("Write content hash failed: %v", err)
+	}
+
+	if err = binary.Write(w, binaryDir, uint64(time.Now().UTC().Unix())); err != nil {
+		return fmt.Errorf("Write build time failed: %v", err)
 	}
 
 	if err = headers.write(w); err != nil {
@@ -36,7 +51,7 @@ func (headers Headers) Store(w io.Writer, base string) (err error) {
 	return
 }
 
-func (headers Headers) StoreFile(pth string, baseDir string) (err error) {
+func (headers Headers) StoreFile(pth string, baseDir string, wrap ...func(w io.WriteCloser) io.WriteCloser) (err error) {
 	fmt.Printf("Writes to %q\n", pth)
 	mode, err := path_helpers.ResolveFileMode(pth)
 	if err != nil {
@@ -50,8 +65,18 @@ func (headers Headers) StoreFile(pth string, baseDir string) (err error) {
 	if err = os.Chmod(pth, mode); err != nil {
 		return
 	}
-	defer f.Close()
-	return headers.Store(f, baseDir)
+	var w io.WriteCloser = f
+	for _, wrap := range wrap {
+		w = wrap(w)
+	}
+	defer w.Close()
+	return headers.Store(w, baseDir)
+}
+
+func (headers Headers) StoreFileGz(pth string, baseDir string) (err error) {
+	return headers.StoreFile(pth+".gz", baseDir, func(w io.WriteCloser) io.WriteCloser {
+		return gzip.NewWriter(w)
+	})
 }
 
 func (headers Headers) do(i int, base string, w io.Writer) (err error) {
@@ -88,7 +113,7 @@ func (headers Headers) do(i int, base string, w io.Writer) (err error) {
 // for multiple outputs (for example a file, or md5 hash)
 func (headers Headers) write(w io.Writer) (err error) {
 	count := uint32(len(headers))
-	if err = binary.Write(w, binary.BigEndian, count); err != nil {
+	if err = binary.Write(w, binaryDir, count); err != nil {
 		err = fmt.Errorf("Write headers count failed: %v", err)
 		return
 	}

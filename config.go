@@ -168,6 +168,8 @@ type Config struct {
 	EmbedArchiveTruncate bool
 
 	EmbedPreInitSource string
+
+	ArchiveGziped bool
 }
 
 // NewConfig returns a default configuration struct.
