@@ -20,7 +20,7 @@ import (
 
 	"github.com/moisespsena-go/bits2str"
 
-	"github.com/moisespsena/go-path-helpers"
+	"github.com/moisespsena-go/path-helpers"
 )
 
 // Translate reads assets from an input directory, converts them

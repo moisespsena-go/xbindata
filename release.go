@@ -272,7 +272,7 @@ func header_embed(w io.Writer, c *Config, toc []Asset) (err error) {
 		"os",
 		`br "github.com/moisespsena-go/xbindata/xbreader"`,
 		`"github.com/moisespsena-go/xbindata/archive"`,
-		"github.com/moisespsena/go-path-helpers",
+		"github.com/moisespsena-go/path-helpers",
 		"sync",
 		"regexp",
 		"strings",

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/moisespsena-go/file-utils"
-	"github.com/moisespsena/go-path-helpers"
+	"github.com/moisespsena-go/path-helpers"
 
 	"github.com/moisespsena-go/io-common"
 )

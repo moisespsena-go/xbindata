@@ -18,7 +18,7 @@ import (
 	"os"
 
 	"github.com/moisespsena-go/xbindata/samples/embed/assets"
-	"github.com/moisespsena/go-path-helpers"
+	"github.com/moisespsena-go/path-helpers"
 	"github.com/spf13/cobra"
 )
 
