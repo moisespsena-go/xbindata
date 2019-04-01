@@ -12,7 +12,7 @@ import (
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
 
-	"github.com/moisespsena/go-error-wrap"
+	"github.com/moisespsena-go/error-wrap"
 
 	"github.com/moisespsena-go/path-helpers"
 	"github.com/pkg/errors"
