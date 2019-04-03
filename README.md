@@ -35,7 +35,7 @@ generated.
 Using GO! installation:
 
 ```
-go get -u github.com/moisespsena-go/xbindata/...
+go get -u github.com/moisespsena-go/xbindata/xbindata
 ```
 
 ### Usage
