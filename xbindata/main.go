@@ -67,7 +67,7 @@ func parseArgs() *xbindata.Config {
 	flag.Var((*AppendSliceValue)(&ignore), "ignore", "Regex pattern to ignore")
 
 	ignoreGlob := make([]string, 0)
-	flag.Var((*AppendSliceValue)(&ignoreGlob), "ignore", "Glob pattern to ignore. See https://github.com/gobwas/glob for more details")
+	flag.Var((*AppendSliceValue)(&ignoreGlob), "ignore-glob", "Glob pattern to ignore. See https://github.com/gobwas/glob for more details")
 
 	flag.Parse()
 	var (

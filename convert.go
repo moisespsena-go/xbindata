@@ -23,11 +23,26 @@ import (
 	"github.com/moisespsena-go/path-helpers"
 )
 
+var (
+	pkg  = path_helpers.GetCalledDir()
+	pkgu = strings.NewReplacer("/", "", "\\", "").Replace(pkg)
+)
+
 // Translate reads assets from an input directory, converts them
 // to Go code and writes new files to the output specified
 // in the given configuration.
 func Translate(c *Config) error {
-	var toc []Asset
+	var (
+		toc          []Asset
+		hibridOutput string
+	)
+
+	if c.Hibrid {
+		c.FileSystem = true
+		c.Tags = append(c.Tags, "!"+c.HibridTagName)
+		hibridOutput = strings.TrimSuffix(c.Output, ".go") + "_default.go"
+		c.Output = strings.TrimSuffix(c.Output, ".go") + "_compiled.go"
+	}
 
 	// Ensure our configuration has sane values.
 	if err := c.validate(); err != nil {
@@ -80,7 +95,7 @@ func Translate(c *Config) error {
 
 	// Write build tags, if applicable.
 	if len(c.Tags) > 0 {
-		if _, err := fmt.Fprintf(buf, "// +build %s\n\n", c.Tags); err != nil {
+		if _, err := fmt.Fprintf(buf, "// +build %s\n\n", strings.Join(c.Tags, ",")); err != nil {
 			return err
 		}
 	}
@@ -114,39 +129,95 @@ func Translate(c *Config) error {
 			return err
 		}
 	}
-	// Write hierarchical tree of assets
-	//if err := writeTOCTree(buf, toc); err != nil {
-	//	return err
-	//}
 
 	if err = safefileWriteFile(c.Output, buf.Bytes(), 0666); err != nil {
 		return err
 	}
 
+	if hibridOutput != "" {
+		buf.Reset()
+		buf.WriteString("// +build " + c.HibridTagName + "\n\n")
+		buf.WriteString("package " + c.Package + "\n")
+		buf.WriteString(`
+import (
+	"github.com/moisespsena-go/assetfs"
+)
+
+var (
+	FileSystem = assetfs.NewAssetFileSystem()
+	AssetFS    = FileSystem
+)
+
+func init() {}
+`)
+		// Locate all the assets.
+		for _, input := range c.Input {
+			finder.recursive = input.Recursive
+			if err := finder.find(input.Path, c.Prefix); err != nil {
+				return err
+			}
+		}
+	}
+
 	if c.Embed {
-		embedDir := filepath.Join(filepath.Dir(c.Output), "data_store")
-		if err = path_helpers.MkdirAllIfNotExists(embedDir); err != nil {
-			return err
+		buf.Reset()
+
+		if err = archiveHeadersWrite(buf, toc, c); err == nil && c.ArchiveHeadersOutput != "" {
+			fmt.Printf("user headers file: `%v`\n", c.ArchiveHeadersOutput)
+
+			if err = path_helpers.MkdirAll(filepath.Dir(c.ArchiveHeadersOutput)); err != nil {
+				return err
+			}
+
+			if mode, err := path_helpers.ResolveMode(c.ArchiveHeadersOutput); err != nil {
+				return err
+			} else if err = safefileWriteFile(c.ArchiveHeadersOutput, buf.Bytes(), mode); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return fmt.Errorf("write headers to buffer failed: %v", err.Error())
 		}
 
-		buf.Reset()
-		embedProgram := filepath.Join(embedDir, "main.go")
-		if err = embedWrite(buf, toc, c); err == nil {
-			err = safefileWriteFile(embedProgram, buf.Bytes(), 0666)
+		headerPath := filepath.Join(filepath.Dir(c.Output), ".archive_compile", "main.go")
+
+		fmt.Printf("main headers file: `%v`\n", headerPath)
+
+		if err = path_helpers.MkdirAll(filepath.Dir(headerPath)); err != nil {
+			return err
+		} else if mode, err := path_helpers.ResolveMode(headerPath); err != nil {
+			return err
+		} else if err = safefileWriteFile(headerPath, buf.Bytes(), mode); err != nil {
+			return err
 		}
 
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("data_store program stored into %q\n", embedDir)
+		var dest = c.EmbedArchive
 
-		if c.EmbedArchive != "" {
-			cmd := exec.Command("go", "run", embedProgram, c.EmbedArchive)
-			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			return cmd.Run()
+		if dest == "" {
+			dest = "assets.bin"
+		}
+
+		println("Destination file:", dest)
+
+		if dest, err = filepath.Abs(dest); err != nil {
+			return err
+		}
+
+		cmd := exec.Command("go", "run", "main.go", dest)
+		cmd.Dir = filepath.Dir(headerPath)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err = cmd.Run(); err == nil {
+			fmt.Printf("remove main headers file `%v`\n", headerPath)
+			if err2 := os.RemoveAll(filepath.Dir(headerPath)); err2 != nil {
+				fmt.Printf("remove main headers file failed: %v\n", err2)
+			}
+		} else {
+			err = fmt.Errorf("compile archive failed: %v", err.Error())
 		}
 	}
 

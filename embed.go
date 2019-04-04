@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func embedWrite(w io.Writer, toc []Asset, c *Config) (err error) {
+func archiveHeadersWrite(w io.Writer, toc []Asset, c *Config) (err error) {
 	var imports string
 	var archive = c.EmbedArchive
 	if len(toc) > 0 {

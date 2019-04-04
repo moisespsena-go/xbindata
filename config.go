@@ -13,6 +13,8 @@ import (
 	"github.com/gobwas/glob"
 )
 
+const DefaultOutput = "./xbindata.go"
+
 // InputConfig defines options on a asset directory to be convert.
 type InputConfig struct {
 	// Path defines a directory containing asset files to be included
@@ -33,7 +35,7 @@ type Config struct {
 	// included in the generated output. The tags are appended to a
 	// `// +build` line in the beginning of the output file
 	// and must follow the build tags syntax specified by the go tool.
-	Tags string
+	Tags []string
 
 	// Input defines the directory path, containing all asset files as
 	// well as whether to recursively process assets in any sub directories.
@@ -169,7 +171,13 @@ type Config struct {
 
 	EmbedPreInitSource string
 
+	ArchiveHeadersOutput string
+
 	ArchiveGziped bool
+
+	Hibrid bool
+
+	HibridTagName string
 }
 
 // NewConfig returns a default configuration struct.
@@ -179,7 +187,7 @@ func NewConfig() *Config {
 	c.NoMemCopy = false
 	c.NoCompress = false
 	c.Debug = false
-	c.Output = "./xbindata.go"
+	c.Output = DefaultOutput
 	c.Ignore = make([]*regexp.Regexp, 0)
 	return c
 }
