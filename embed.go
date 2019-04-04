@@ -33,6 +33,8 @@ func archiveHeadersWrite(w io.Writer, toc []Asset, c *Config) (err error) {
 
 import (
 	` + imports + `
+
+    "errors"
 	"time"
 
 	bc "github.com/moisespsena-go/xbindata/xbcommon"
@@ -40,7 +42,15 @@ import (
 )
 
 func main() {
-	if err := headers.StoreFile` + gz + `(` + archive + `, baseDir); err != nil {
+	dest := "assets.xb"
+    if len(os.Args) > 1 {
+		dest = os.Args[1]
+	}
+	if dest == "" {
+		panic(errors.New("destination file is empty"))
+	}
+
+	if err := headers.StoreFile` + gz + `(dest, baseDir); err != nil {
 		panic(err)
 	}
 }

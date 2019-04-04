@@ -62,14 +62,17 @@ func init() {
 	flag.BoolVar(&c.NoMetadata, "nometadata", c.NoMetadata, "Assets will not preserve size, mode, and modtime info.")
 	flag.StringVarP(&c.Output, "api", "A", c.Output, "Name of assets api file.")
 	flag.StringVarP(&c.EmbedArchive, "output", "o", c.EmbedArchive, "Optional. Append embed contents into this file.")
-	flag.StringVarP(&c.ArchiveHeadersOutput, "headers-output", "O", c.ArchiveHeadersOutput, "Optional. Append embed contents into this file.")
+	flag.StringVarP(&c.ArchiveHeadersOutput, "headers-output", "O", c.ArchiveHeadersOutput, "Optional OUTPUT. Append embed contents into this file.")
 	flag.BoolVarP(&c.EmbedArchiveTruncate, "truncate", "T", c.EmbedArchiveTruncate, "Optional. Truncate archive if exists.")
 	flag.UintVarP(&c.Mode, "mode", "m", c.Mode, "Optional file mode override for all files.")
 	flag.Int64VarP(&c.ModTime, "modtime", "t", c.ModTime, "Optional modification unix timestamp override for all files.")
-	flag.BoolVarP(&c.ArchiveGziped, "compress", "C", c.ArchiveGziped, "compress output with gzip.")
-	flag.BoolVarP(&c.Hibrid, "hibrid", "H", c.Hibrid, "compress output with gzip.")
+	flag.BoolVarP(&c.ArchiveGziped, "compress", "C", c.ArchiveGziped, "Compress output with gzip.")
+	flag.BoolVarP(&c.Hibrid, "hibrid", "H", c.Hibrid, "Create assets with in two files: `_default` and `_compiled`. "+
+		"- The `*_default` was compiled when have `xblocalfs` build tag and load assets from local file system.\n"+
+		"- The `*_compiled` was compiled when does not have `xblocalfs` build tag and load assets from OUTPUT.")
+	flag.BoolVarP(&c.ArchiveAutoloadDisabled, "autoload-disabled", "L", c.ArchiveAutoloadDisabled, "Disable auto load assets.")
 	flag.StringVar(&c.HibridTagName, "hibrid-tag", c.HibridTagName, "HTAG. Set name of hibrid tag.\n"+
-		"Runs with local assets (base dir is OUTPUT), not compiled: `go run -tag HTAG main.go`.\n"+
+		"Runs with local assets (dir of OUTPUT), not compiled: `go run -tag HTAG main.go`.\n"+
 		"Runs compiled: `go run main.go`.")
 
 	flag.Var(&StringsValue{setter: func(i int, tag string) {

@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -276,6 +277,8 @@ func header_embed(w io.Writer, c *Config, toc []Asset) (err error) {
 		"sync",
 		"regexp",
 		"strings",
+		"path/filepath",
+		"errors",
 	); err != nil {
 		return
 	}
@@ -283,22 +286,34 @@ func header_embed(w io.Writer, c *Config, toc []Asset) (err error) {
 	for i := range toc {
 		size += toc[i].Size
 	}
-	archive := c.EmbedArchive
-	if archive == "" {
-		archive = "os.Args[0]"
-	} else {
-		archive = fmt.Sprintf("%q", archive)
+	var archives []string
+
+	if c.EmbedArchive != "" {
+		if c.ArchiveGziped {
+			archives = append(archives, strconv.Quote(c.EmbedArchive+".gz"))
+		}
+		archives = append(archives, strconv.Quote(c.EmbedArchive))
 	}
+	archives = append(archives, "os.Args[0]")
+	archive := strings.Join(archives, ", ")
+
+	preInit := c.EmbedPreInitSource
+	if preInit != "" {
+		preInit = "\n" + preInit
+	}
+
 	data := `
 var (
+	_archive     *archive.Archive
+	archivePath  string
+	archivePaths []string
+    mu           sync.Mutex
+
 	StartPos int64
 	Assets   bc.Assets
-	_archive *archive.Archive
-    mu       sync.Mutex
 
 	pkg           = path_helpers.GetCalledDir()
 	envName       = "XBINDATA_ARCHIVE__" + strings.ToUpper(regexp.MustCompile("[\\W]+").ReplaceAllString(pkg, "_"))
-	archivePath   = os.Getenv(envName)
 	OpenArchive   = br.Open
 	ReaderFactory = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 		return func() (reader iocommon.ReadSeekCloser, err error) {
@@ -327,11 +342,22 @@ func Archive() (archiv *archive.Archive, err error) {
 	return _archive, nil
 }
 
-func init() {
-	` + c.EmbedPreInitSource + `
-	if archivePath == "" {
-		archivePath = ` + archive + `
+func Load() {` + preInit + `
+	for _, pth := range append(strings.Split(os.Getenv(envName), string(filepath.ListSeparator)), ` + archive + `) {
+        if pth == "" { continue }
+
+		if _, err := os.Stat(pth); err == nil {
+			archivePath = pth
+			break;
+		} else if !os.IsNotExist(err) {
+			panic(err)
+		}
 	}
+
+	if archivePath == "" {
+		panic(errors.New("archive path not defined"))
+	}
+
     Assets.Factory = func() (assets map[string]bc.Asset, err error) {`
 	data += `
 		archiv, err := Archive()
@@ -340,10 +366,15 @@ func init() {
 		}
     
 		return archiv.AssetsMap(ReaderFactory), nil`
-		data += `
+	data += `
 	}
 }
 `
+
+	if !c.ArchiveAutoloadDisabled {
+		data += "\nfunc init() { Load() }\n"
+	}
+
 	_, err = fmt.Fprintf(w, data)
 	return
 }

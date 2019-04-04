@@ -175,6 +175,8 @@ type Config struct {
 
 	ArchiveGziped bool
 
+	ArchiveAutoloadDisabled bool
+
 	Hibrid bool
 
 	HibridTagName string

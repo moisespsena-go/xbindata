@@ -78,7 +78,11 @@ func Translate(c *Config) error {
 		return err
 	}
 
-	if !c.Embed {
+	if c.Embed {
+		if c.EmbedArchive == "" {
+			c.EmbedArchive = "assets.xb"
+		}
+	} else {
 		for _, asset := range toc {
 			relative, err := filepath.Rel(wd, asset.Path)
 			if err != nil {
@@ -147,7 +151,7 @@ var (
 	AssetFS    = assetfs.NewAssetFileSystem()
 )
 
-func init() {
+func Load() {
 `)
 		// Locate all the assets.
 		for _, input := range c.Input {
@@ -155,6 +159,10 @@ func init() {
 		}
 
 		buf.WriteString("}\n")
+
+		if !c.ArchiveAutoloadDisabled {
+			buf.WriteString("\nfunc init() { Load() }\n")
+		}
 
 		if err = safefileWriteFile(hibridOutput, buf.Bytes(), 0666); err != nil {
 			return err
@@ -196,19 +204,13 @@ func init() {
 			return err
 		}
 
-		var dest = c.EmbedArchive
-
-		if dest == "" {
-			dest = "assets.bin"
+		embedAsset := c.EmbedArchive
+		if embedAsset, err = filepath.Abs(embedAsset); err != nil {
+			return fmt.Errorf("abs path failed: %v", err.Error())
 		}
+		println("destination file: `" + embedAsset + "`")
 
-		println("Destination file:", dest)
-
-		if dest, err = filepath.Abs(dest); err != nil {
-			return err
-		}
-
-		cmd := exec.Command("go", "run", "main.go", dest)
+		cmd := exec.Command("go", "run", "main.go", embedAsset)
 		cmd.Dir = filepath.Dir(headerPath)
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		cmd.Stdout = os.Stdout
