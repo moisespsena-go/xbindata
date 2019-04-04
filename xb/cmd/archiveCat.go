@@ -15,27 +15,21 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
-var archivePath string
-
-// archiveLsCmd represents the archiveList command
-var archiveLsCmd = &cobra.Command{
-	Use:   "ls ASSET_NAME...",
-	Short: "List asset or assets into dir",
+// archiveCatCmd represents the archiveRead command
+var archiveCatCmd = &cobra.Command{
+	Use:   "cat ASSET_NAME...",
 	Args:  cobra.MinimumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
-		return
+	Short: "A brief description of your command",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("cat called")
 	},
 }
 
 func init() {
-	archiveCmd.AddCommand(archiveLsCmd)
-
-	pflag := archiveLsCmd.PersistentFlags()
-	pflag.StringVarP(&archivePath, "archive", "A", "assets.bin", "The archive path.")
-
-	flag := archiveLsCmd.Flags()
-	flag.BoolP("long", "l", false, "Print as long list.")
+	archiveCmd.AddCommand(archiveCatCmd)
 }

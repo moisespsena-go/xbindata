@@ -17,9 +17,20 @@ type Provider struct {
 }
 
 func (p *Provider) Open(archive string, start, size int64) (reader iocommon.ReadSeekCloser, err error) {
-	if f, err := os.Open(archive); err != nil {
-		return nil, err
-	} else if reader, err = iocommon.NewLimitedReader(f, start, size); err != nil {
+	var f *os.File
+	if f, err = os.Open(archive); err != nil {
+		return
+	}
+
+	if size == -1 {
+		var info os.FileInfo
+		if info, err = f.Stat(); err != nil {
+			return
+		}
+		size = info.Size()
+	}
+
+	if reader, err = iocommon.NewLimitedReader(f, start, size); err != nil {
 		return nil, err
 	}
 	return

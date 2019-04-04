@@ -52,7 +52,7 @@ func init() {
 	c := archiveCreateConfig
 
 	c.Embed = true
-	c.HibridTagName = "xbcompiled"
+	c.HibridTagName = "xblocalfs"
 
 	flag.BoolVar(&c.Debug, "debug", c.Debug, "Do not embed the assets, but provide the embedding API. Contents will still be loaded from disk.")
 	flag.BoolVar(&c.Dev, "dev", c.Dev, "Similar to debug, but does not emit absolute paths. Expects a rootDir variable to already exist in the generated code's package.")

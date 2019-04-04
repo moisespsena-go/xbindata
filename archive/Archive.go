@@ -18,6 +18,8 @@ import (
 
 	"github.com/moisespsena-go/io-common"
 
+	"errors"
+
 	"github.com/moisespsena-go/xbindata/xbcommon"
 )
 
@@ -47,8 +49,13 @@ func OpenFile(pth string) (archive *Archive, err error) {
 func (archive *Archive) readHeaders(r io.Reader) (err error) {
 	hash := make([]byte, sha256.Size)
 	if _, err = r.Read(hash); err != nil {
-		err = fmt.Errorf("Read content hash failed: %v", err)
+		err = fmt.Errorf("read content hash failed: %v", err)
 	}
+
+	if err = readNL(r); err != nil {
+		return
+	}
+
 	copy(archive.Hash[:], hash)
 
 	var (
@@ -56,7 +63,10 @@ func (archive *Archive) readHeaders(r io.Reader) (err error) {
 		i   uint32
 	)
 	if err = binary.Read(r, binaryDir, &i64); err != nil {
-		err = fmt.Errorf("Read build time failed: %v", err)
+		err = fmt.Errorf("read build time failed: %v", err)
+		return
+	}
+	if err = readNL(r); err != nil {
 		return
 	}
 
@@ -65,6 +75,10 @@ func (archive *Archive) readHeaders(r io.Reader) (err error) {
 
 	if err = binary.Read(r, binaryDir, &i); err != nil {
 		err = fmt.Errorf("Read headers count failed: %v", err)
+		return
+	}
+
+	if err = readNL(r); err != nil {
 		return
 	}
 
@@ -82,6 +96,11 @@ func (archive *Archive) readHeaders(r io.Reader) (err error) {
 			err = fmt.Errorf("Read headers %d failed: %v", i, err)
 			return
 		}
+
+		if err = readNL(r); err != nil {
+			return
+		}
+
 		headers[i] = h
 	}
 	archive.Headers = headers
@@ -182,5 +201,16 @@ func (archive *Archive) AssetsMap(readerFactory ...AssetReaderFactory) (assets m
 	archive.EachAsset(func(i int, asset xbcommon.Asset) {
 		assets[asset.Path()] = asset
 	}, readerFactory...)
+	return
+}
+
+func readNL(r io.Reader) (err error) {
+	var b = make([]byte, 1)
+	if _, err = r.Read(b); err != nil {
+		err = fmt.Errorf("read NL failed: %v", err)
+		return
+	} else if string(b) != "\n" {
+		return errors.New("NL expected")
+	}
 	return
 }

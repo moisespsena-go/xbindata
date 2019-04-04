@@ -35,8 +35,18 @@ func (headers Headers) Store(w io.Writer, base string) (err error) {
 		return fmt.Errorf("Write content hash failed: %v", err)
 	}
 
+	if _, err = w.Write([]byte("\n")); err != nil {
+		err = fmt.Errorf("write NL failed: %v", err)
+		return
+	}
+
 	if err = binary.Write(w, binaryDir, uint64(time.Now().UTC().Unix())); err != nil {
 		return fmt.Errorf("Write build time failed: %v", err)
+	}
+
+	if _, err = w.Write([]byte("\n")); err != nil {
+		err = fmt.Errorf("write NL failed: %v", err)
+		return
 	}
 
 	if err = headers.write(w); err != nil {
@@ -114,13 +124,20 @@ func (headers Headers) do(i int, base string, w io.Writer) (err error) {
 func (headers Headers) write(w io.Writer) (err error) {
 	count := uint32(len(headers))
 	if err = binary.Write(w, binaryDir, count); err != nil {
-		err = fmt.Errorf("Write headers count failed: %v", err)
+		err = fmt.Errorf("write headers count failed: %v", err)
 		return
 	}
-
+	if _, err = w.Write([]byte("\n")); err != nil {
+		err = fmt.Errorf("write NL failed: %v", err)
+		return
+	}
 	for i, asset := range headers {
 		if err = asset.Marshal(w); err != nil {
 			return fmt.Errorf("write header of asset %d failed: %v", i, asset.Path())
+		}
+		if _, err = w.Write([]byte("\n")); err != nil {
+			err = fmt.Errorf("write NL failed: %v", err)
+			return
 		}
 	}
 	return

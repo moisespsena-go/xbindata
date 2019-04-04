@@ -144,18 +144,20 @@ import (
 )
 
 var (
-	FileSystem = assetfs.NewAssetFileSystem()
-	AssetFS    = FileSystem
+	AssetFS    = assetfs.NewAssetFileSystem()
 )
 
-func init() {}
+func init() {
 `)
 		// Locate all the assets.
 		for _, input := range c.Input {
-			finder.recursive = input.Recursive
-			if err := finder.find(input.Path, c.Prefix); err != nil {
-				return err
-			}
+			buf.WriteString(fmt.Sprintf("    if err := AssetFS.RegisterPath(%q); err != nil {panic(err)}\n", input.Path))
+		}
+
+		buf.WriteString("}\n")
+
+		if err = safefileWriteFile(hibridOutput, buf.Bytes(), 0666); err != nil {
+			return err
 		}
 	}
 
