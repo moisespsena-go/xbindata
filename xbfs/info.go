@@ -3,11 +3,11 @@ package xbfs
 import (
 	"io"
 
-	"github.com/moisespsena/go-assetfs/assetfsapi"
+	"github.com/moisespsena-go/assetfs/assetfsapi"
 
 	"github.com/moisespsena-go/io-common"
 	"github.com/moisespsena-go/xbindata/xbcommon"
-	"github.com/moisespsena/go-assetfs"
+	"github.com/moisespsena-go/assetfs"
 )
 
 type FileInfo struct {

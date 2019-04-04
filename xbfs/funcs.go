@@ -4,7 +4,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/moisespsena/go-assetfs/assetfsapi"
+	"github.com/moisespsena-go/assetfs/assetfsapi"
 
 	"github.com/moisespsena-go/os-common"
 

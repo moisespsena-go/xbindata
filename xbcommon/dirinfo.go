@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/moisespsena/go-assetfs/assetfsapi"
+	"github.com/moisespsena-go/assetfs/assetfsapi"
 )
 
 type DirInfo struct {

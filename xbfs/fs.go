@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/moisespsena/go-assetfs/assetfsapi"
+	"github.com/moisespsena-go/assetfs/assetfsapi"
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
-	"github.com/moisespsena/go-assetfs"
+	"github.com/moisespsena-go/assetfs"
 
 	"github.com/moisespsena-go/file-utils"
-	"github.com/moisespsena/go-assetfs/repository"
-	rapi "github.com/moisespsena/go-assetfs/repository/api"
+	"github.com/moisespsena-go/assetfs/repository"
+	rapi "github.com/moisespsena-go/assetfs/repository/api"
 )
 
 var ERR_BINDATA_FILE = errors.New("Bindata file.")

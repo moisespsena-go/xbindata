@@ -4,7 +4,7 @@ import (
 	"path"
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
-	"github.com/moisespsena/go-assetfs/assetfsapi"
+	"github.com/moisespsena-go/assetfs/assetfsapi"
 )
 
 func _glob(root xbcommon.NodeDir, pattern assetfsapi.GlobPattern, cb func(pth string, isDir bool) error) (err error) {

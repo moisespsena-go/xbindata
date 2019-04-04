@@ -176,7 +176,7 @@ The default behaviour of the program is to use compression.
 When the `-fs` flag is given, the file system resource is available on `AssetFS` global variable.
 
 ```go
-import "github.com/moisespsena/go-assetfs/api"
+import "github.com/moisespsena-go/assetfs/api"
 
 var AssetFS api.Interface
 ```
