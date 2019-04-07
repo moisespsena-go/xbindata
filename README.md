@@ -1,4 +1,4 @@
-## bindata
+## zbindata
 
 *This fork is maintained by Moises P. Sena. Don't expect many new features, though
 I will take a look at PR's. Changes made include:*
@@ -35,7 +35,7 @@ generated.
 Using GO! installation:
 
 ```
-go get -u github.com/moisespsena-go/xbindata/xbindata
+go get -u github.com/moisespsena-go/xbindata/xb
 ```
 
 ### Usage
