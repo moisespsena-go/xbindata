@@ -8,16 +8,16 @@ import (
 	"strings"
 )
 
-func archiveHeadersWrite(w io.Writer, toc []Asset, c *Config) (err error) {
+func outlinedHeadersWrite(w io.Writer, toc []Asset, c *Config) (err error) {
 	var imports string
-	var archive = c.EmbedArchive
+	var outlined = c.Output
 	if len(toc) > 0 {
 		imports = "\"os\""
 	}
-	if archive == "" {
-		archive = "os.Args[1]"
+	if outlined == "" {
+		outlined = "os.Args[1]"
 	} else {
-		archive = fmt.Sprintf("%q", archive)
+		outlined = fmt.Sprintf("%q", outlined)
 	}
 	var prefix string
 	if c.Prefix != "" {
@@ -25,7 +25,7 @@ func archiveHeadersWrite(w io.Writer, toc []Asset, c *Config) (err error) {
 	}
 
 	var gz string
-	if c.ArchiveGziped {
+	if !c.NoCompress {
 		gz = "Gz"
 	}
 
@@ -38,7 +38,7 @@ import (
 	"time"
 
 	bc "github.com/moisespsena-go/xbindata/xbcommon"
-	"github.com/moisespsena-go/xbindata/archive"
+	"github.com/moisespsena-go/xbindata/outlined"
 )
 
 func main() {
@@ -56,7 +56,7 @@ func main() {
 }
 
 const baseDir = ` + strconv.Quote(prefix) + `
-var headers = archive.Headers{
+var headers = outlined.Headers{
 `))
 	for i := range toc {
 		info, _ := toc[i].InfoExport(c)
@@ -64,7 +64,7 @@ var headers = archive.Headers{
 		if prefix != "" {
 			pth = strings.TrimPrefix(strings.Replace(pth, prefix, "", -1), string(filepath.Separator))
 		}
-		if _, err = fmt.Fprintf(w, "\tarchive.NewHeader(bc.NewFileInfo(%q, %s)),\n", pth, info); err != nil {
+		if _, err = fmt.Fprintf(w, "\toutlined.NewHeader(bc.NewFileInfo(%q, %s)),\n", pth, info); err != nil {
 			return err
 		}
 	}

@@ -1,4 +1,4 @@
-package archive
+package outlined
 
 import (
 	"compress/gzip"
@@ -25,7 +25,7 @@ import (
 
 var log = logging.MustGetLogger(path_helpers.GetCalledDir())
 
-type Archive struct {
+type Outlined struct {
 	Headers     Headers
 	HeadersSize int64
 	Path        string
@@ -34,19 +34,19 @@ type Archive struct {
 	BuildDate   time.Time
 }
 
-func New() *Archive {
-	return &Archive{}
+func New() *Outlined {
+	return &Outlined{}
 }
 
-func OpenFile(pth string) (archive *Archive, err error) {
-	archive = &Archive{Path: pth}
-	if err = archive.ReadFile(pth); err != nil {
+func OpenFile(pth string) (outlined *Outlined, err error) {
+	outlined = &Outlined{Path: pth}
+	if err = outlined.ReadFile(pth); err != nil {
 		return nil, err
 	}
 	return
 }
 
-func (archive *Archive) readHeaders(r io.Reader) (err error) {
+func (outlined *Outlined) readHeaders(r io.Reader) (err error) {
 	hash := make([]byte, sha256.Size)
 	if _, err = r.Read(hash); err != nil {
 		err = fmt.Errorf("read content hash failed: %v", err)
@@ -56,7 +56,7 @@ func (archive *Archive) readHeaders(r io.Reader) (err error) {
 		return
 	}
 
-	copy(archive.Hash[:], hash)
+	copy(outlined.Hash[:], hash)
 
 	var (
 		i64 uint64
@@ -71,7 +71,7 @@ func (archive *Archive) readHeaders(r io.Reader) (err error) {
 	}
 
 	t := time.Unix(int64(i64), 0)
-	archive.BuildDate = t
+	outlined.BuildDate = t
 
 	if err = binary.Read(r, binaryDir, &i); err != nil {
 		err = fmt.Errorf("Read headers count failed: %v", err)
@@ -82,15 +82,15 @@ func (archive *Archive) readHeaders(r io.Reader) (err error) {
 		return
 	}
 
-	archive.Len = int(i)
+	outlined.Len = int(i)
 
-	if archive.Len == 0 {
+	if outlined.Len == 0 {
 		return
 	}
 
-	var headers = make(Headers, archive.Len, archive.Len)
+	var headers = make(Headers, outlined.Len, outlined.Len)
 
-	for i := 0; i < archive.Len; i++ {
+	for i := 0; i < outlined.Len; i++ {
 		h := &Header{}
 		if err = h.Unmarshal(r); err != nil {
 			err = fmt.Errorf("Read headers %d failed: %v", i, err)
@@ -103,20 +103,20 @@ func (archive *Archive) readHeaders(r io.Reader) (err error) {
 
 		headers[i] = h
 	}
-	archive.Headers = headers
+	outlined.Headers = headers
 	return nil
 }
 
-func (archive *Archive) Read(r io.Reader) (err error) {
+func (outlined *Outlined) Read(r io.Reader) (err error) {
 	rc := &readCounter{Reader: r}
-	if err = archive.readHeaders(rc); err != nil {
+	if err = outlined.readHeaders(rc); err != nil {
 		return
 	}
-	archive.HeadersSize = rc.count
+	outlined.HeadersSize = rc.count
 	return
 }
 
-func (archive *Archive) Uncompress(pth string) (n int64, err error) {
+func (outlined *Outlined) Uncompress(pth string) (n int64, err error) {
 	s, err := os.Open(pth)
 	if err != nil {
 		return 0, err
@@ -140,7 +140,7 @@ func (archive *Archive) Uncompress(pth string) (n int64, err error) {
 	return n, nil
 }
 
-func (archive *Archive) ReadFile(pth string) (err error) {
+func (outlined *Outlined) ReadFile(pth string) (err error) {
 	var f *os.File
 	if !strings.HasSuffix(pth, ".gz") {
 		pth += ".gz"
@@ -149,7 +149,7 @@ func (archive *Archive) ReadFile(pth string) (err error) {
 	if _, err := os.Stat(pth); err == nil {
 		dpth := strings.TrimSuffix(pth, ".gz")
 		log.Infof("Uncompressing %q to %q", pth, dpth)
-		n, err := archive.Uncompress(pth)
+		n, err := outlined.Uncompress(pth)
 		if err != nil {
 			return fmt.Errorf("Uncompress %q to %q failed: %v", pth, dpth, err)
 		}
@@ -166,39 +166,39 @@ func (archive *Archive) ReadFile(pth string) (err error) {
 	if f, err = os.Open(pth); err != nil {
 		return
 	}
-	archive.Path = pth
+	outlined.Path = pth
 	defer f.Close()
-	return archive.Read(f)
+	return outlined.Read(f)
 }
 
-func (archive *Archive) ReaderFactory(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
+func (outlined *Outlined) ReaderFactory(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 	return func() (reader iocommon.ReadSeekCloser, err error) {
-		return xbreader.Open(archive.Path, archive.HeadersSize+start, size)
+		return xbreader.Open(outlined.Path, outlined.HeadersSize+start, size)
 	}
 }
 
-func (archive *Archive) EachAsset(cb func(i int, asset xbcommon.Asset), readerFactory ...AssetReaderFactory) {
-	var rf AssetReaderFactory = archive.ReaderFactory
+func (outlined *Outlined) EachAsset(cb func(i int, asset xbcommon.Asset), readerFactory ...AssetReaderFactory) {
+	var rf AssetReaderFactory = outlined.ReaderFactory
 	if len(readerFactory) > 0 && readerFactory[0] != nil {
-		var headersSize = archive.HeadersSize
+		var headersSize = outlined.HeadersSize
 		rf = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 			return readerFactory[0](headersSize+start, size)
 		}
 	}
-	archive.Headers.EachAssets(rf, cb)
+	outlined.Headers.EachAssets(rf, cb)
 }
 
-func (archive *Archive) Assets(readerFactory ...AssetReaderFactory) (assets []xbcommon.Asset) {
-	assets = make([]xbcommon.Asset, archive.Len, archive.Len)
-	archive.EachAsset(func(i int, asset xbcommon.Asset) {
+func (outlined *Outlined) Assets(readerFactory ...AssetReaderFactory) (assets []xbcommon.Asset) {
+	assets = make([]xbcommon.Asset, outlined.Len, outlined.Len)
+	outlined.EachAsset(func(i int, asset xbcommon.Asset) {
 		assets[i] = asset
 	}, readerFactory...)
 	return
 }
 
-func (archive *Archive) AssetsMap(readerFactory ...AssetReaderFactory) (assets map[string]xbcommon.Asset) {
+func (outlined *Outlined) AssetsMap(readerFactory ...AssetReaderFactory) (assets map[string]xbcommon.Asset) {
 	assets = map[string]xbcommon.Asset{}
-	archive.EachAsset(func(i int, asset xbcommon.Asset) {
+	outlined.EachAsset(func(i int, asset xbcommon.Asset) {
 		assets[asset.Path()] = asset
 	}, readerFactory...)
 	return

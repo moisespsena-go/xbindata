@@ -16,9 +16,9 @@ type Provider struct {
 	Pool rpool.Pool
 }
 
-func (p *Provider) Open(archive string, start, size int64) (reader iocommon.ReadSeekCloser, err error) {
+func (p *Provider) Open(outlined string, start, size int64) (reader iocommon.ReadSeekCloser, err error) {
 	var f *os.File
-	if f, err = os.Open(archive); err != nil {
+	if f, err = os.Open(outlined); err != nil {
 		return
 	}
 
@@ -75,12 +75,12 @@ func (p *PulledProvider) Open(start, size int64) (reader iocommon.ReadSeekCloser
 	return
 }
 
-func Open(archive string, start, size int64) (reader iocommon.ReadSeekCloser, err error) {
-	return provider.Open(archive, start, size)
+func Open(outlined string, start, size int64) (reader iocommon.ReadSeekCloser, err error) {
+	return provider.Open(outlined, start, size)
 }
 
-func NewOpener(archive string, start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
+func NewOpener(outlined string, start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 	return func() (reader iocommon.ReadSeekCloser, err error) {
-		return Open(archive, start, size)
+		return Open(outlined, start, size)
 	}
 }

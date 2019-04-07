@@ -143,8 +143,8 @@ func writeTOC(c *Config, buf *bytes.Buffer, toc []Asset) error {
 // writeTOCHeader writes the table of contents file header.
 func writeTOCHeader(buf *bytes.Buffer) {
 	buf.WriteString(`
-// Assets is a table, holding each asset generator, mapped to its name.
-var Assets = bc.NewAssets(
+// Embed is a table, holding each asset generator, mapped to its name.
+var Embed = bc.NewAssets(
 `)
 }
 

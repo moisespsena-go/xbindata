@@ -5,8 +5,11 @@
 package xbindata
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,15 +36,11 @@ var (
 // in the given configuration.
 func Translate(c *Config) error {
 	var (
-		toc          []Asset
-		hibridOutput string
+		toc []Asset
 	)
 
-	if c.Hibrid {
+	if c.Hybrid {
 		c.FileSystem = true
-		c.Tags = append(c.Tags, "!"+c.HibridTagName)
-		hibridOutput = strings.TrimSuffix(c.Output, ".go") + "_default.go"
-		c.Output = strings.TrimSuffix(c.Output, ".go") + "_compiled.go"
 	}
 
 	// Ensure our configuration has sane values.
@@ -52,12 +51,19 @@ func Translate(c *Config) error {
 	var (
 		knownFuncs   = make(map[string]int)
 		visitedPaths = make(map[string]bool)
-		finder       = &Finder{false, &toc, c.Ignore, c.IgnoreGlob, knownFuncs, visitedPaths}
 	)
 
 	// Locate all the assets.
 	for _, input := range c.Input {
-		finder.recursive = input.Recursive
+		finder := Finder{
+			input.Recursive,
+			&toc,
+			append(c.Ignore, input.Ignore...),
+			append(c.IgnoreGlob, input.IgnoreGlob...),
+			knownFuncs,
+			visitedPaths,
+		}
+
 		if err := finder.find(input.Path, c.Prefix); err != nil {
 			return err
 		}
@@ -78,9 +84,12 @@ func Translate(c *Config) error {
 		return err
 	}
 
-	if c.Embed {
-		if c.EmbedArchive == "" {
-			c.EmbedArchive = "assets.xb"
+	if c.Outlined {
+		if c.Output == "" {
+			c.Output = filepath.Join("xb", c.Package+".xb")
+		}
+		if c.OutlinedApi == "" {
+			c.OutlinedApi = "assets.go"
 		}
 	} else {
 		for _, asset := range toc {
@@ -127,68 +136,108 @@ func Translate(c *Config) error {
 		return err
 	}
 
-	if !c.Embed {
+	if !c.Outlined {
 		// Write table of contents
 		if err := writeTOC(c, buf, toc); err != nil {
 			return err
 		}
-	}
+	} else if c.Hybrid {
+		buf.WriteString(`var LocalFS = assetfs.NewAssetFileSystem()
 
-	if err = safefileWriteFile(c.Output, buf.Bytes(), 0666); err != nil {
-		return err
-	}
-
-	if hibridOutput != "" {
-		buf.Reset()
-		buf.WriteString("// +build " + c.HibridTagName + "\n\n")
-		buf.WriteString("package " + c.Package + "\n")
-		buf.WriteString(`
-import (
-	"github.com/moisespsena-go/assetfs"
-)
-
-var (
-	AssetFS    = assetfs.NewAssetFileSystem()
-)
-
-func Load() {
+func LoadLocal() {
+	var inputs = []string{
 `)
 		// Locate all the assets.
 		for _, input := range c.Input {
-			buf.WriteString(fmt.Sprintf("    if err := AssetFS.RegisterPath(%q); err != nil {panic(err)}\n", input.Path))
+			buf.WriteString(fmt.Sprintf("\t\t%q,\n", input.Path))
 		}
-
-		buf.WriteString("}\n")
-
-		if !c.ArchiveAutoloadDisabled {
-			buf.WriteString("\nfunc init() { Load() }\n")
-		}
-
-		if err = safefileWriteFile(hibridOutput, buf.Bytes(), 0666); err != nil {
-			return err
+		buf.WriteString(`	}
+	for _, pth := range inputs {
+		if err := LocalFS.RegisterPath(pth); err != nil {
+			panic(err)
 		}
 	}
+}
+`)
+	}
 
-	if c.Embed {
+	dest := c.Output
+	if c.Outlined {
+		dest = c.OutlinedApi
+	}
+
+	if err = safefileWriteFile(dest, buf.Bytes(), 0666); err != nil {
+		return err
+	}
+
+	if c.Outlined {
 		buf.Reset()
 
-		if err = archiveHeadersWrite(buf, toc, c); err == nil && c.ArchiveHeadersOutput != "" {
-			fmt.Printf("user headers file: `%v`\n", c.ArchiveHeadersOutput)
+		if err = outlinedHeadersWrite(buf, toc, c); err == nil && c.OutlinedHeadersOutput != "" {
+			fmt.Printf("user headers file: `%v`\n", c.OutlinedHeadersOutput)
 
-			if err = path_helpers.MkdirAll(filepath.Dir(c.ArchiveHeadersOutput)); err != nil {
+			if err = path_helpers.MkdirAll(filepath.Dir(c.OutlinedHeadersOutput)); err != nil {
 				return err
 			}
 
-			if mode, err := path_helpers.ResolveMode(c.ArchiveHeadersOutput); err != nil {
+			if mode, err := path_helpers.ResolveMode(c.OutlinedHeadersOutput); err != nil {
 				return err
-			} else if err = safefileWriteFile(c.ArchiveHeadersOutput, buf.Bytes(), mode); err != nil {
+			} else if err = safefileWriteFile(c.OutlinedHeadersOutput, buf.Bytes(), mode); err != nil {
 				return err
 			}
 		} else if err != nil {
 			return fmt.Errorf("write headers to buffer failed: %v", err.Error())
 		}
 
-		headerPath := filepath.Join(filepath.Dir(c.Output), ".archive_compile", "main.go")
+		outlinedDir := filepath.Dir(c.OutlinedApi)
+		outlinedDirGitIgnore := filepath.Join(outlinedDir, ".gitignore")
+		if f, err := os.Open(outlinedDirGitIgnore); err == nil {
+			var has bool
+			err = func() error {
+				defer f.Close()
+				var r = bufio.NewReader(f)
+				var line []byte
+				for {
+					if line, _, err = r.ReadLine(); err == nil {
+						if string(line) == "xb_compiler/" {
+							has = true
+							break
+						}
+					} else if err == io.EOF {
+						break
+					} else {
+						return fmt.Errorf("read %q gitignore failed: `%v`\n", outlinedDirGitIgnore, err)
+					}
+				}
+				return nil
+			}()
+			if err != nil {
+				return err
+			}
+			if !has {
+				if f, err = os.OpenFile(outlinedDirGitIgnore, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
+					return err
+				}
+				err = func() (err error) {
+					defer f.Close()
+					if _, err = f.WriteString("xb_compiler/\n"); err != nil {
+						return fmt.Errorf("add `xb_compiler/` to gitignore failed: `%v`\n", err)
+					}
+					return
+				}()
+				if err != nil {
+					return err
+				}
+			}
+		} else if os.IsNotExist(err) {
+			if err = ioutil.WriteFile(outlinedDirGitIgnore, []byte("xb_compiler/\n"), 0666); err != nil {
+				fmt.Printf("write `xb_compiler/` to new gitignore file failed: `%v`\n", err)
+			}
+		} else {
+			return err
+		}
+
+		headerPath := filepath.Join(outlinedDir, "xb_compiler", "main.go")
 
 		fmt.Printf("main headers file: `%v`\n", headerPath)
 
@@ -204,24 +253,19 @@ func Load() {
 			return err
 		}
 
-		embedAsset := c.EmbedArchive
-		if embedAsset, err = filepath.Abs(embedAsset); err != nil {
+		outputFile := c.Output
+		if outputFile, err = filepath.Abs(outputFile); err != nil {
 			return fmt.Errorf("abs path failed: %v", err.Error())
 		}
-		println("destination file: `" + embedAsset + "`")
+		println("destination file: `" + outputFile + "`")
 
-		cmd := exec.Command("go", "run", "main.go", embedAsset)
+		cmd := exec.Command("go", "run", "main.go", outputFile)
 		cmd.Dir = filepath.Dir(headerPath)
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		if err = cmd.Run(); err == nil {
-			fmt.Printf("remove main headers file `%v`\n", headerPath)
-			if err2 := os.RemoveAll(filepath.Dir(headerPath)); err2 != nil {
-				fmt.Printf("remove main headers file failed: %v\n", err2)
-			}
-		} else {
-			err = fmt.Errorf("compile archive failed: %v", err.Error())
+		if err = cmd.Run(); err != nil {
+			err = fmt.Errorf("compile outlined failed: %v", err.Error())
 		}
 	}
 

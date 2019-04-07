@@ -13,7 +13,7 @@ import (
 	"github.com/gobwas/glob"
 )
 
-const DefaultOutput = "./xbindata.go"
+const DefaultOutput = "./xb.go"
 
 // InputConfig defines options on a asset directory to be convert.
 type InputConfig struct {
@@ -24,6 +24,21 @@ type InputConfig struct {
 	// Recusive defines whether subdirectories of Path
 	// should be recursively included in the conversion.
 	Recursive bool
+
+	// Ignores any filenames matching the regex pattern specified, e.g.
+	// path/to/file.ext will ignore only that file, or \\.gitignore
+	// will match any .gitignore file.
+	//
+	// This parameter can be provided multiple times.
+	Ignore []*regexp.Regexp
+
+	// Ignores any filenames matching the glob pattern specified, e.g.
+	// path/to/*.ext will ignore only that file, or \\.gitignore
+	// will match any .gitignore file.
+	// See <https://github.com/gobwas/glob> for more glob info.
+	//
+	// This parameter can be provided multiple times.
+	IgnoreGlob []glob.Glob
 }
 
 // Config defines a set of options for the asset conversion.
@@ -160,26 +175,25 @@ type Config struct {
 	// This parameter provides `AssetFS` variable.
 	FileSystem bool
 
-	// Embed assets content into binary file. Do not compile it.
-	Embed bool
+	// Outlined assets content into binary file. Do not compile it.
+	Outlined bool
 
-	// EmbedArchive save asset contents into him. If is blank, use the application binary.
-	EmbedArchive string
+	//
+	OutlineEmbeded bool
 
-	// EmbedArchiveTruncate truncate existing archive.
-	EmbedArchiveTruncate bool
+	// OutlinedApi save asset contents into him. If is blank, use the application binary.
+	OutlinedApi string
+
+	// OutlinedNoTruncate truncate existing outlined.
+	OutlinedNoTruncate bool
 
 	EmbedPreInitSource string
 
-	ArchiveHeadersOutput string
+	OutlinedHeadersOutput string
 
-	ArchiveGziped bool
+	NoAutoLoad bool
 
-	ArchiveAutoloadDisabled bool
-
-	Hibrid bool
-
-	HibridTagName string
+	Hybrid bool
 }
 
 // NewConfig returns a default configuration struct.
@@ -197,7 +211,7 @@ func NewConfig() *Config {
 // validate ensures the config has sane values.
 // Part of which means checking if certain file/directory paths exist.
 func (c *Config) validate() error {
-	if len(c.Package) == 0 {
+	if c.Package == "" {
 		return fmt.Errorf("Missing package name")
 	}
 
@@ -208,13 +222,17 @@ func (c *Config) validate() error {
 		}
 	}
 
-	if len(c.Output) == 0 {
+	if c.Outlined {
+		if c.Output == "" {
+			c.Output = c.Package + ".xb"
+		}
+	} else if c.Output == "" {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return fmt.Errorf("Unable to determine current working directory.")
 		}
 
-		c.Output = filepath.Join(cwd, "xbindata.go")
+		c.Output = filepath.Join(cwd, "xb.go")
 	}
 
 	stat, err := os.Lstat(c.Output)

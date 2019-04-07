@@ -12,7 +12,7 @@ func main() {
 	cfg.FileSystem = true
 	cfg.NoCompress = true
 	cfg.NoMemCopy = true
-	cfg.Embed = true
+	cfg.Outlined = true
 	if err := xbindata.Translate(cfg); err != nil {
 		panic(err)
 	}

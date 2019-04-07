@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,7 +26,7 @@ func writeRelease(w io.Writer, c *Config, toc []Asset) error {
 		return err
 	}
 
-	if !c.Embed {
+	if !c.Outlined {
 		var start int64
 		for i := range toc {
 			err = writeReleaseAsset(start, w, c, &toc[i])
@@ -43,8 +44,8 @@ func writeRelease(w io.Writer, c *Config, toc []Asset) error {
 // This targets release builds.
 func writeReleaseHeader(w io.Writer, c *Config, toc []Asset) error {
 	var err error
-	if c.Embed {
-		err = header_embed(w, c, toc)
+	if c.Outlined {
+		err = header_outlined(w, c, toc)
 	} else if c.NoCompress {
 		if c.NoMemCopy {
 			err = header_uncompressed_nomemcopy(w, c)
@@ -77,7 +78,7 @@ func writeReleaseAsset(start int64, w io.Writer, c *Config, asset *Asset) error 
 
 	h := sha256.New()
 	tr := io.TeeReader(fd, h)
-	if !c.Embed {
+	if !c.Outlined {
 		if c.NoCompress {
 			if c.NoMemCopy {
 				err = uncompressed_nomemcopy(w, asset, tr)
@@ -166,7 +167,24 @@ func write_imports(w io.Writer, c *Config, imports ...string) (err error) {
 		)
 	}
 
-	sort.Strings(imports)
+	sort.Slice(imports, func(i, j int) bool {
+		a, b := imports[i], imports[j]
+		ia, ib := strings.IndexByte(a, ' '), strings.IndexByte(b, ' ')
+		if ia == ib {
+			if len(a) < len(b) {
+				return true
+			}
+			if len(a) == len(b) {
+				return a < b
+			}
+			return false
+		} else if ia > 0 && ib < 0 {
+			return false
+		} else if ib > 0 && ia < 0 {
+			return true
+		}
+		return a[0:ia] < b[0:ib]
+	})
 
 	for i, imp := range imports {
 		if imp[len(imp)-1] != '"' {
@@ -268,34 +286,43 @@ func header_uncompressed_memcopy(w io.Writer, c *Config) (err error) {
 	return
 }
 
-func header_embed(w io.Writer, c *Config, toc []Asset) (err error) {
-	if err = write_imports(w, c,
+func header_outlined(w io.Writer, c *Config, toc []Asset) (err error) {
+	var imports = []string{
 		"os",
 		`br "github.com/moisespsena-go/xbindata/xbreader"`,
-		`"github.com/moisespsena-go/xbindata/archive"`,
+		`"github.com/moisespsena-go/xbindata/outlined"`,
 		"github.com/moisespsena-go/path-helpers",
+		`fsapi "github.com/moisespsena-go/assetfs/assetfsapi"`,
 		"sync",
 		"regexp",
 		"strings",
 		"path/filepath",
 		"errors",
-	); err != nil {
+	}
+
+	if c.Hybrid {
+		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	}
+
+	if err = write_imports(w, c, imports...); err != nil {
 		return
 	}
 	var size int64
 	for i := range toc {
 		size += toc[i].Size
 	}
-	var archives []string
+	var outlineds []string
 
-	if c.EmbedArchive != "" {
-		if c.ArchiveGziped {
-			archives = append(archives, strconv.Quote(c.EmbedArchive+".gz"))
+	if c.Output != "" {
+		if !c.NoCompress {
+			outlineds = append(outlineds, strconv.Quote(c.Output+".gz"))
 		}
-		archives = append(archives, strconv.Quote(c.EmbedArchive))
+		outlineds = append(outlineds, strconv.Quote(c.Output))
 	}
-	archives = append(archives, "os.Args[0]")
-	archive := strings.Join(archives, ", ")
+	if c.OutlineEmbeded {
+		outlineds = append(outlineds, "os.Args[0]")
+	}
+	outlined := strings.Join(outlineds, ", ")
 
 	preInit := c.EmbedPreInitSource
 	if preInit != "" {
@@ -304,9 +331,9 @@ func header_embed(w io.Writer, c *Config, toc []Asset) (err error) {
 
 	data := `
 var (
-	_archive     *archive.Archive
-	archivePath  string
-	archivePaths []string
+	_outlined     *outlined.Outlined
+	outlinedPath  string
+	outlinedPaths []string
     mu           sync.Mutex
 
 	StartPos int64
@@ -314,10 +341,10 @@ var (
 
 	pkg           = path_helpers.GetCalledDir()
 	envName       = "XBINDATA_ARCHIVE__" + strings.ToUpper(regexp.MustCompile("[\\W]+").ReplaceAllString(pkg, "_"))
-	OpenArchive   = br.Open
-	ReaderFactory = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
+	OpenOutlined   = br.Open
+	OutlinedReaderFactory = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 		return func() (reader iocommon.ReadSeekCloser, err error) {
-			return OpenArchive(archivePath, start, size)
+			return OpenOutlined(outlinedPath, start, size)
 		}
 	}
 )
@@ -326,54 +353,89 @@ func EnvName() string {
 	return envName
 }
 
-func ArchivePath() string {
-	return archivePath
+func OutlinedPath() string {
+	return outlinedPath
 }
 
-func Archive() (archiv *archive.Archive, err error) {
-	if _archive == nil {
+func Outlined() (archiv *outlined.Outlined, err error) {
+	if _outlined == nil {
         mu.Lock()
 		defer mu.Unlock() 
 
-		if _archive, err = archive.OpenFile(archivePath); err != nil {
+		if _outlined, err = outlined.OpenFile(outlinedPath); err != nil {
 			return
 		}
 	}
-	return _archive, nil
+	return _outlined, nil
 }
 
-func Load() {` + preInit + `
-	for _, pth := range append(strings.Split(os.Getenv(envName), string(filepath.ListSeparator)), ` + archive + `) {
-        if pth == "" { continue }
+func LoadOutlined() {` + preInit + `
+	if outlinedPath == "" {
+		for _, pth := range append(strings.Split(os.Getenv(envName), string(filepath.ListSeparator)), ` + outlined + `) {
+    	    if pth == "" { continue }
 
-		if _, err := os.Stat(pth); err == nil {
-			archivePath = pth
-			break;
-		} else if !os.IsNotExist(err) {
-			panic(err)
+			if _, err := os.Stat(pth); err == nil {
+				outlinedPath = pth
+				break;
+			} else if !os.IsNotExist(err) {
+				panic(err)
+			}
 		}
 	}
 
-	if archivePath == "" {
-		panic(errors.New("archive path not defined"))
+	if outlinedPath == "" {
+		panic(errors.New("outlined path not defined"))
 	}
 
     Assets.Factory = func() (assets map[string]bc.Asset, err error) {`
 	data += `
-		archiv, err := Archive()
+		archiv, err := Outlined()
 		if err != nil {
 			return nil, err
 		}
     
-		return archiv.AssetsMap(ReaderFactory), nil`
+		return archiv.AssetsMap(OutlinedReaderFactory), nil`
 	data += `
 	}
 }
+
 `
 
-	if !c.ArchiveAutoloadDisabled {
+	if c.Hybrid {
+		data += "func IsLocal() bool {\n"
+		data += fmt.Sprintf("\tif _, err := os.Stat(%q); err == nil {\n\t\t", filepath.Join(c.Package, "data"))
+		data += "return true\n\t\t"
+		data += "}\n\t"
+		data += "return false\n}\n\n"
+	}
+
+	data += "func Load() {\n"
+	if c.Hybrid {
+		data += `	if IsLocal() {
+		LoadLocal()
+	} else {
+		LoadOutlined()
+	}
+`
+	} else {
+		data += "LoadOutlined()\n"
+	}
+
+	data += "}\n"
+
+	if !c.NoAutoLoad {
 		data += "\nfunc init() { Load() }\n"
 	}
+
+	data += "\nfunc FS() fsapi.Interface {\n"
+	if c.Hybrid {
+		data += `	if IsLocal() {
+		return LocalFS
+	}
+`
+		data += "\treturn OutlinedFS"
+	}
+	data += "\n}\n"
 
 	_, err = fmt.Fprintf(w, data)
 	return
@@ -381,9 +443,15 @@ func Load() {` + preInit + `
 
 func header_release_common(w io.Writer, c *Config) (err error) {
 	if c.FileSystem {
-		_, err = fmt.Fprintf(w, `
-var AssetFS = fs.NewFileSystem(&Assets)
+		if c.Hybrid {
+			_, err = fmt.Fprintf(w, `
+var OutlinedFS = fs.NewFileSystem(&Assets)
 `)
+		} else {
+			_, err = fmt.Fprintf(w, `
+var AssetFS fsapi.Interface = fs.NewFileSystem(&Assets)
+`)
+		}
 	}
 	return
 }
@@ -484,7 +552,7 @@ func %sReader()(iocommon.ReadSeekCloser, error) {
 
 func asset_release_common(start int64, w io.Writer, c *Config, asset *Asset, digest [sha256.Size]byte) error {
 	var readerFunc string
-	if c.Embed {
+	if c.Outlined {
 		readerFunc = fmt.Sprintf("newOpener(%d, %d)", start, asset.Size)
 	} else {
 		readerFunc = fmt.Sprintf("%sReader", asset.Func)

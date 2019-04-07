@@ -42,7 +42,7 @@ var fsCatCmd = &cobra.Command{
 		}
 
 		if notFound {
-			return errors.New("Assets not found.")
+			return errors.New("Embed not found.")
 		}
 
 		var out io.Writer = os.Stdout

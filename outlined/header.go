@@ -1,4 +1,4 @@
-package archive
+package outlined
 
 import (
 	"crypto/sha256"

@@ -23,6 +23,8 @@ type Asset struct {
 	Func string // Function name for the procedure returning the asset contents.
 	Size int64
 
+	Prefix string
+
 	info  os.FileInfo
 	ctime time.Time
 
@@ -72,7 +74,7 @@ func (a *Asset) SourceCode(c *Config, start int64) (code string, err error) {
 		return "", err
 	}
 	var readerFunc string
-	if c.Embed {
+	if c.Outlined {
 		readerFunc = fmt.Sprintf("newOpener(%d, %d)", start, a.Size)
 	} else {
 		readerFunc = fmt.Sprintf("%sReader", a.Func)
