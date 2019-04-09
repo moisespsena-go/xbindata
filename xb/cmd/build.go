@@ -17,6 +17,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"os"
 	"reflect"
 	"strconv"
 
@@ -47,74 +48,103 @@ func unmarshalConfig(dest interface{}) error {
 }
 
 // buildCmd represents the build command
-var buildCmd = &cobra.Command{
-	Use:   "build [PKG...]",
-	Short: "build all or specified PKG from config file",
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
-		var cfg xbindata.ManyConfig
-		if err = unmarshalConfig(&cfg); err != nil {
-			return
-		}
+var (
+	cfgFile string
 
-		if err = cfg.Validate(); err != nil {
-			return
-		}
+	buildCmd = &cobra.Command{
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			initConfig()
+		},
+		Use:   "build [PKG...]",
+		Short: "build all or specified PKG from config file",
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			var cfg xbindata.ManyConfig
+			if err = unmarshalConfig(&cfg); err != nil {
+				return
+			}
 
-		if len(args) > 0 {
-			var (
-				embedded []xbindata.ManyConfigEmbedded
-				outline  []xbindata.ManyConfigOutlined
-				accepts  = func(pkg string) bool {
-					for _, arg := range args {
-						if arg == pkg {
-							return true
+			if err = cfg.Validate(); err != nil {
+				return
+			}
+
+			if len(args) > 0 {
+				var (
+					embedded []xbindata.ManyConfigEmbedded
+					outline  []xbindata.ManyConfigOutlined
+					accepts  = func(pkg string) bool {
+						for _, arg := range args {
+							if arg == pkg {
+								return true
+							}
 						}
+						return false
 					}
-					return false
+				)
+
+				for _, cfg := range cfg.Outlined {
+					if accepts(cfg.Pkg) {
+						outline = append(outline, cfg)
+					}
 				}
-			)
+				for _, cfg := range cfg.Embedded {
+					if accepts(cfg.Pkg) {
+						embedded = append(embedded, cfg)
+					}
+				}
+				cfg.Outlined, cfg.Embedded = outline, embedded
+			}
 
-			for _, cfg := range cfg.Outlined {
-				if accepts(cfg.Pkg) {
-					outline = append(outline, cfg)
+			for i, cfg := range cfg.Outlined {
+				log.Println("==== cfg config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
+				var c *xbindata.Config
+				if c, err = cfg.Config(); err != nil {
+					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
+				}
+				if err = xbindata.Translate(c); err != nil {
+					return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
 				}
 			}
-			for _, cfg := range cfg.Embedded {
-				if accepts(cfg.Pkg) {
-					embedded = append(embedded, cfg)
+
+			for i, cfg := range cfg.Embedded {
+				log.Println("==== embeded config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
+				var c *xbindata.Config
+				if c, err = cfg.Config(); err != nil {
+					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
+				}
+				if err = xbindata.Translate(c); err != nil {
+					return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
 				}
 			}
-			cfg.Outlined, cfg.Embedded = outline, embedded
-		}
 
-		for i, cfg := range cfg.Outlined {
-			log.Println("==== cfg config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
-			var c *xbindata.Config
-			if c, err = cfg.Config(); err != nil {
-				return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
-			}
-			if err = xbindata.Translate(c); err != nil {
-				return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
-			}
-		}
-
-		for i, cfg := range cfg.Embedded {
-			log.Println("==== embeded config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
-			var c *xbindata.Config
-			if c, err = cfg.Config(); err != nil {
-				return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
-			}
-			if err = xbindata.Translate(c); err != nil {
-				return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
-			}
-		}
-
-		return
-	},
-}
+			return
+		},
+	}
+)
 
 func init() {
 	rootCmd.AddCommand(buildCmd)
 	flag := buildCmd.Flags()
 	flag.BoolP("program", "P", false, "build outlined and append contents into program")
+
+	buildCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./.xb.yaml)")
+}
+
+// initConfig reads in config file and ENV variables if set.
+func initConfig() {
+	if cfgFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(cfgFile)
+	} else {
+		viper.AddConfigPath(".")
+		viper.SetConfigName(".xb")
+	}
+
+	viper.AutomaticEnv() // read in environment variables that match
+
+	// If a config file is found, read it in.
+	if err := viper.ReadInConfig(); err == nil {
+		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	} else if !os.IsNotExist(err) {
+		panic(fmt.Errorf("load config `%v` failed: %v", viper.ConfigFileUsed(), err))
+	}
 }
