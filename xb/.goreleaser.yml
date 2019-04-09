@@ -1,0 +1,68 @@
+# This is an example goreleaser.yaml file with some sane defaults.
+# Make sure to check the documentation at http://goreleaser.com
+builds:
+- env:
+  - CGO_ENABLED=0
+
+  asmflags:
+    - all=-trimpath={{.Env.GOPATH}}
+
+  gcflags:
+    - all=-trimpath={{.Env.GOPATH}}
+
+  goos:
+    - linux
+    - darwin
+    - windows
+    -
+  goarch:
+    - 386
+    - amd64
+    - arm
+    - arm64
+
+  goarm:
+    - 6
+    - 7
+
+checksum:
+  name_template: '{{ .ProjectName }}_checksums.txt'
+
+archive:
+  name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+  replacements:
+    darwin: Darwin
+    linux: Linux
+    windows: Windows
+    386: i386
+    amd64: x86_64
+  format_overrides:
+    - goos: windows
+      format: zip
+
+nfpm:
+  name_template: '{{ .ProjectName }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+  homepage:  https://github.com/moisespsena-go/xbindata
+  description: Extreme Binary Assets Tool for Go!
+  maintainer: Moises P. Sena <moisespsena@gmail.com>
+  license: Apache v2.0
+  vendor: GoXBindata
+  formats:
+    - deb
+    - rpm
+  dependencies:
+    - git
+  recommends:
+  - rpm
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - Merge pull request
+      - Merge branch
