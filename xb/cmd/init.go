@@ -36,11 +36,11 @@ var initCmd = &cobra.Command{
 		for _, dir := range args {
 			pth := filepath.Join(dir, ".xb.yaml")
 			if path_helpers.IsExistingRegularFile(pth) {
-				log.Println("`" + dir + "` ignore")
+				log.Println("`" + pth + "` ignore")
 				continue
 			}
 
-			log.Println("`" + dir + "` initializing...")
+			log.Println("`" + pth + "` initializing...")
 			if err = path_helpers.MkdirAllIfNotExists(dir); err != nil {
 				return
 			}
