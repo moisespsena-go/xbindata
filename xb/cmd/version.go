@@ -22,15 +22,15 @@ import (
 
 // versionCmd represents the version command
 var (
-	version, commit, date string
+	Version, Commit, Date string
 
 	versionCmd = &cobra.Command{
 		Use:   "version",
 		Short: "print version",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Version: %s", version)
-			fmt.Println("Commit: %s", commit)
-			fmt.Println("Date: %s", date)
+			fmt.Println("Version:", Version)
+			fmt.Println("Commit:", Commit)
+			fmt.Println("Date:", Date)
 		},
 	}
 )

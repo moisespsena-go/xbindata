@@ -16,6 +16,11 @@ package main
 
 import "github.com/moisespsena-go/xbindata/xb/cmd"
 
+var (
+	version, commit, date string
+)
+
 func main() {
+	cmd.Version, cmd.Commit, cmd.Date = version, commit, date
 	cmd.Execute()
 }
