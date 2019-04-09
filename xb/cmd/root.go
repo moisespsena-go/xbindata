@@ -27,7 +27,7 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "xb",
-	Short: "Extreme Binary Data Tool for Go!",
+	Short: "Extreme Binary Assets Tool for Go!",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
