@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/moisespsena-go/error-wrap"
 	"github.com/moisespsena-go/path-helpers"
 	"github.com/op/go-logging"
 
@@ -32,15 +33,16 @@ type Outlined struct {
 	Len         int
 	Hash        [sha256.Size]byte
 	BuildDate   time.Time
+	StartPos    int64
 }
 
 func New() *Outlined {
 	return &Outlined{}
 }
 
-func OpenFile(pth string) (outlined *Outlined, err error) {
+func OpenFile(pth string, ended ...bool) (outlined *Outlined, err error) {
 	outlined = &Outlined{Path: pth}
-	if err = outlined.ReadFile(pth); err != nil {
+	if err = outlined.ReadFile(pth, ended...); err != nil {
 		return nil, err
 	}
 	return
@@ -140,7 +142,7 @@ func (outlined *Outlined) Uncompress(pth string) (n int64, err error) {
 	return n, nil
 }
 
-func (outlined *Outlined) ReadFile(pth string) (err error) {
+func (outlined *Outlined) ReadFile(pth string, ended ...bool) (err error) {
 	var f *os.File
 	if !strings.HasSuffix(pth, ".gz") {
 		pth += ".gz"
@@ -166,9 +168,27 @@ func (outlined *Outlined) ReadFile(pth string) (err error) {
 	if f, err = os.Open(pth); err != nil {
 		return
 	}
-	outlined.Path = pth
 	defer f.Close()
-	return outlined.Read(f)
+
+	var r io.Reader = f
+
+	if len(ended) > 0 && ended[0] {
+		s, _ := f.Stat()
+		if _, err = f.Seek(-4, io.SeekEnd); err != nil {
+			return
+		}
+		var outlinedSize uint32
+		if err = binary.Read(f, binaryDir, &outlinedSize); err != nil {
+			return errwrap.Wrap(err, "read size")
+		}
+		// FILE_SIZE - OUTLINED_SIZE - SITE_BYTES (uint32 = 4)
+		if outlined.StartPos, err = f.Seek(s.Size()-int64(outlinedSize)-4, io.SeekStart); err != nil {
+			return errwrap.Wrap(err, "seek to start pos")
+		}
+	}
+
+	outlined.Path = pth
+	return outlined.Read(r)
 }
 
 func (outlined *Outlined) ReaderFactory(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
@@ -210,7 +230,7 @@ func readNL(r io.Reader) (err error) {
 		err = fmt.Errorf("read NL failed: %v", err)
 		return
 	} else if string(b) != "\n" {
-		return errors.New("NL expected")
+		return errors.New("NL expected but get `" + string(b) + "`")
 	}
 	return
 }

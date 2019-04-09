@@ -13,7 +13,7 @@ import (
 	"github.com/gobwas/glob"
 )
 
-const DefaultOutput = "./xb.go"
+const DefaultOutput = "assets.go"
 
 // InputConfig defines options on a asset directory to be convert.
 type InputConfig struct {
@@ -187,6 +187,8 @@ type Config struct {
 	// OutlinedNoTruncate truncate existing outlined.
 	OutlinedNoTruncate bool
 
+	OutlinedProgram bool
+
 	EmbedPreInitSource string
 
 	OutlinedHeadersOutput string
@@ -194,6 +196,10 @@ type Config struct {
 	NoAutoLoad bool
 
 	Hybrid bool
+
+	NoStore bool
+
+	OulinedSkipApi bool
 }
 
 // NewConfig returns a default configuration struct.
@@ -204,7 +210,6 @@ func NewConfig() *Config {
 	c.NoCompress = false
 	c.Debug = false
 	c.Output = DefaultOutput
-	c.Ignore = make([]*regexp.Regexp, 0)
 	return c
 }
 
@@ -224,7 +229,11 @@ func (c *Config) validate() error {
 
 	if c.Outlined {
 		if c.Output == "" {
-			c.Output = c.Package + ".xb"
+			if c.OutlinedProgram {
+				c.Output = OutputToProgram
+			} else {
+				c.Output = c.Package + ".xb"
+			}
 		}
 	} else if c.Output == "" {
 		cwd, err := os.Getwd()
@@ -255,6 +264,10 @@ func (c *Config) validate() error {
 
 	if stat != nil && stat.IsDir() {
 		return fmt.Errorf("Output path is a directory.")
+	}
+
+	if c.Hybrid {
+		c.FileSystem = true
 	}
 
 	return nil

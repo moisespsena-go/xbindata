@@ -5,7 +5,14 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/mitchellh/mapstructure"
+
 	"github.com/gobwas/glob"
+)
+
+const (
+	OutputToProgram = "_"
+	DefaultDataDir  = "assets"
 )
 
 type IgnoreSlice []string
@@ -69,17 +76,7 @@ func (i ManyConfigInput) Config() (c *InputConfig, err error) {
 	return
 }
 
-type ManyConfigEmbedded struct {
-}
-
-type ManyConfigOutlined struct {
-	Pkg        string
-	Api        string
-	Output     string
-	Prefix     string
-	Fs         bool
-	Hybrid     bool
-	Embeded    bool
+type ManyConfigCommon struct {
 	NoAutoLoad bool `mapstructure:"no_auto_load" yaml:"no_auto_load"`
 	NoCompress bool `mapstructure:"no_compress" yaml:"no_compress"`
 	NoMetadata bool `mapstructure:"no_metadata" yaml:"no_metadata"`
@@ -88,17 +85,18 @@ type ManyConfigOutlined struct {
 	Ignore     IgnoreSlice
 	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
 	Inputs     ManyConfigInputSlice
+	Pkg        string
+	Output     string
+	Prefix     string
+	Fs         bool
+	Hybrid     bool
 }
 
-func (a *ManyConfigOutlined) Validate() (err error) {
+func (a *ManyConfigCommon) Validate() (err error) {
 	if a.Pkg == "" {
 		a.Pkg = "main"
 	}
 	if a.Pkg == "main" {
-		if a.Api == "" {
-			a.Api = "assets.go"
-		}
-
 		if len(a.Inputs) == 0 {
 			a.Inputs = append(a.Inputs, ManyConfigInput{
 				Path:       "assets",
@@ -107,42 +105,33 @@ func (a *ManyConfigOutlined) Validate() (err error) {
 			})
 		}
 	} else {
-		dir := filepath.FromSlash(a.Pkg)
-
-		if a.Api == "" {
-			a.Api = filepath.Join(dir, "assets.go")
-		}
-
 		if len(a.Inputs) == 0 {
 			a.Inputs = append(a.Inputs, ManyConfigInput{
-				Path:       filepath.Join(dir, "assets"),
+				Path:       filepath.Join(filepath.FromSlash(a.Pkg), DefaultDataDir),
 				Recursive:  true,
 				IgnoreGlob: IgnoreGlobSlice{".*", "*.swp"},
 			})
 		}
 	}
 
-	if a.Prefix == "." {
+	if a.Prefix == "_" {
 		a.Prefix = a.Inputs[0].Path
 	}
 
 	return nil
 }
 
-func (a *ManyConfigOutlined) Config() (c *Config, err error) {
+func (a *ManyConfigCommon) Config() (c *Config, err error) {
 	c = NewConfig()
-	c.Outlined = true
 	c.Package = a.Pkg
-	c.OutlinedApi = a.Api
 	c.FileSystem = a.Fs
-	c.Hybrid = a.Hybrid
 	c.NoAutoLoad = a.NoAutoLoad
 	c.NoCompress = a.NoCompress
 	c.NoMetadata = a.NoMetadata
 	c.Mode = a.Mode
 	c.ModTime = a.ModTime
 	c.Prefix = a.Prefix
-	c.Output = ""
+	c.Hybrid = a.Hybrid
 
 	if a.Output != "" {
 		c.Output = a.Output
@@ -162,6 +151,79 @@ func (a *ManyConfigOutlined) Config() (c *Config, err error) {
 	return
 }
 
+func (a *ManyConfigCommon) UnmarshalMap(value interface{}) (err error) {
+	return mapstructure.Decode(value, a)
+}
+
+type ManyConfigEmbedded struct {
+	ManyConfigCommon
+}
+
+func (a *ManyConfigEmbedded) Validate() (err error) {
+	if err = a.ManyConfigCommon.Validate(); err != nil {
+		return
+	}
+	if a.Output == "" {
+		if a.Pkg == "main" {
+			a.Output = "assets.go"
+		} else {
+			a.Output = filepath.Join(filepath.FromSlash(a.Pkg), "assets.go")
+		}
+	}
+
+	return nil
+}
+
+func (a *ManyConfigEmbedded) UnmarshalMap(value interface{}) (err error) {
+	return a.ManyConfigCommon.UnmarshalMap(value)
+}
+
+type ManyConfigOutlined struct {
+	ManyConfigCommon
+	Api     string
+	Program bool
+}
+
+func (a *ManyConfigOutlined) Validate() (err error) {
+	if err = a.ManyConfigCommon.Validate(); err != nil {
+		return
+	}
+	if a.Pkg == "main" {
+		if a.Api == "" {
+			a.Api = "assets.go"
+		}
+	} else if a.Api == "" {
+		a.Api = filepath.Join(filepath.FromSlash(a.Pkg), "assets.go")
+	}
+
+	return nil
+}
+
+func (a *ManyConfigOutlined) Config() (c *Config, err error) {
+	if c, err = a.ManyConfigCommon.Config(); err != nil {
+		return
+	}
+	c.Outlined = true
+	c.OutlinedApi = a.Api
+	c.OutlinedProgram = a.Program
+	c.Output = ""
+
+	if a.Output == "" && !a.Program {
+		c.Output = filepath.Join("_assets", filepath.FromSlash(a.Pkg)+".xb")
+	} else {
+		c.Output = a.Output
+	}
+	return
+}
+
+func (a *ManyConfigOutlined) UnmarshalMap(value interface{}) (err error) {
+	if err = a.ManyConfigCommon.UnmarshalMap(value); err != nil {
+		return
+	}
+	err = mapstructure.Decode(value, a)
+	return
+}
+
 func (a *ManyConfigOutlined) Translate() (err error) {
 	var c *Config
 	if c, err = a.Config(); err != nil {
@@ -178,7 +240,7 @@ type ManyConfig struct {
 func (c *ManyConfig) Validate() (err error) {
 	var hasOutlinedEmbeded bool
 	for i, o := range c.Outlined {
-		if o.Embeded {
+		if o.Program {
 			if hasOutlinedEmbeded {
 				return fmt.Errorf("multiples outlined with embeded enabled")
 			}
@@ -189,5 +251,15 @@ func (c *ManyConfig) Validate() (err error) {
 		}
 		c.Outlined[i] = o
 	}
+	for i, e := range c.Embedded {
+		if err = e.Validate(); err != nil {
+			return fmt.Errorf("Embeded #d validate failed: %v", i, err)
+		}
+		c.Embedded[i] = e
+	}
 	return nil
+}
+
+type MapUnmarshaler interface {
+	UnmarshalMap(value interface{}) (err error)
 }

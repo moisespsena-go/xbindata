@@ -13,7 +13,19 @@ import (
 
 type Header struct {
 	*xbcommon.FileInfo
-	digest *[sha256.Size]byte
+	digest     *[sha256.Size]byte
+	storeSize  int64
+	compressed bool
+}
+
+func (a *Header) Compressed(storeSize int64) *Header {
+	a.compressed = true
+	a.storeSize = storeSize
+	return a
+}
+
+func (a *Header) IsCompressed() bool {
+	return a.compressed
 }
 
 func NewHeader(fileInfo *xbcommon.FileInfo) *Header {

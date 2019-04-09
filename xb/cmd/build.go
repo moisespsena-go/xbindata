@@ -1,4 +1,4 @@
-// Copyright © 2019 NAME HERE <EMAIL ADDRESS>
+// Copyright © 2019 Moises P. Sena <moisespsena@gmail.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,21 +17,42 @@ package cmd
 import (
 	"fmt"
 	"log"
-	"os"
+	"reflect"
+	"strconv"
+
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/moisespsena-go/xbindata"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
 )
+
+func unmarshalConfig(dest interface{}) error {
+	return viper.Unmarshal(dest, func(config *mapstructure.DecoderConfig) {
+		oldHook := config.DecodeHook
+		config.DecodeHook = mapstructure.ComposeDecodeHookFunc(oldHook, func(from reflect.Type, to reflect.Type, v interface{}) (interface{}, error) {
+			if to.Kind() == reflect.Struct {
+				unmarshalerType := reflect.TypeOf((*xbindata.MapUnmarshaler)(nil)).Elem()
+				if reflect.PtrTo(to).Implements(unmarshalerType) {
+					unmh := reflect.New(to).Interface().(xbindata.MapUnmarshaler)
+					if err := unmh.UnmarshalMap(v); err != nil {
+						return nil, err
+					}
+					return unmh, nil
+				}
+			}
+			return v, nil
+		})
+	})
+}
 
 // buildCmd represents the build command
 var buildCmd = &cobra.Command{
-	Use:   "build",
-	Short: "build from config file",
+	Use:   "build [PKG...]",
+	Short: "build all or specified PKG from config file",
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 		var cfg xbindata.ManyConfig
-		if err = viper.Unmarshal(&cfg); err != nil {
+		if err = unmarshalConfig(&cfg); err != nil {
 			return
 		}
 
@@ -39,15 +60,52 @@ var buildCmd = &cobra.Command{
 			return
 		}
 
-		for i, outlined := range cfg.Outlined {
-			log.Println("==== outlined:", outlined.Pkg, " ====")
-			yaml.NewEncoder(os.Stderr).Encode(&outlined)
+		if len(args) > 0 {
+			var (
+				embedded []xbindata.ManyConfigEmbedded
+				outline  []xbindata.ManyConfigOutlined
+				accepts  = func(pkg string) bool {
+					for _, arg := range args {
+						if arg == pkg {
+							return true
+						}
+					}
+					return false
+				}
+			)
+
+			for _, cfg := range cfg.Outlined {
+				if accepts(cfg.Pkg) {
+					outline = append(outline, cfg)
+				}
+			}
+			for _, cfg := range cfg.Embedded {
+				if accepts(cfg.Pkg) {
+					embedded = append(embedded, cfg)
+				}
+			}
+			cfg.Outlined, cfg.Embedded = outline, embedded
+		}
+
+		for i, cfg := range cfg.Outlined {
+			log.Println("==== cfg config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
 			var c *xbindata.Config
-			if c, err = outlined.Config(); err != nil {
-				return fmt.Errorf("outlined #%d [%s]: create config failed: %v", i, outlined.Pkg, err)
+			if c, err = cfg.Config(); err != nil {
+				return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
 			}
 			if err = xbindata.Translate(c); err != nil {
-				return fmt.Errorf("outlined #%d [%s]: translate failed: %v", i, outlined.Pkg, err)
+				return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
+			}
+		}
+
+		for i, cfg := range cfg.Embedded {
+			log.Println("==== embeded config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
+			var c *xbindata.Config
+			if c, err = cfg.Config(); err != nil {
+				return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
+			}
+			if err = xbindata.Translate(c); err != nil {
+				return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
 			}
 		}
 
@@ -57,4 +115,6 @@ var buildCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(buildCmd)
+	flag := buildCmd.Flags()
+	flag.BoolP("program", "P", false, "build outlined and append contents into program")
 }

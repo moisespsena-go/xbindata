@@ -16,6 +16,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/moisespsena-go/path-helpers"
 )
 
 // ErrAlreadyCommitted error is returned when calling Commit on a file that
@@ -48,7 +50,15 @@ func makeTempName(origname, prefix string) (tempname string, err error) {
 
 // safefileCreate creates a temporary file in the same directory as filename,
 // which will be renamed to the given filename when calling Commit.
-func safefileCreate(filename string, perm os.FileMode) (*safefileFile, error) {
+func safefileCreate(filename string, perm os.FileMode) (f *safefileFile, err error) {
+	if err := path_helpers.MkdirAllIfNotExists(filepath.Dir(filename)); err != nil {
+		return nil, err
+	}
+	if perm == 0 {
+		if perm, err = path_helpers.ResolveMode(filename); err != nil {
+			return
+		}
+	}
 	for {
 		tempname, err := makeTempName(filename, "sf")
 		if err != nil {

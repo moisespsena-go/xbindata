@@ -3,8 +3,6 @@ package xbcommon
 import (
 	"os"
 	"time"
-
-	"github.com/moisespsena-go/assetfs/assetfsapi"
 )
 
 type DirInfo struct {
@@ -20,9 +18,11 @@ func (b DirInfo) Name() string {
 	return b.name
 }
 
+/*
 func (DirInfo) Type() assetfsapi.FileType {
 	return assetfsapi.FileTypeBindata | assetfsapi.FileTypeDir
 }
+*/
 
 func (DirInfo) Size() int64 {
 	return -1

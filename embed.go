@@ -5,36 +5,26 @@ import (
 	"io"
 	"path/filepath"
 	"strconv"
-	"strings"
 )
 
 func outlinedHeadersWrite(w io.Writer, toc []Asset, c *Config) (err error) {
-	var imports string
-	var outlined = c.Output
-	if len(toc) > 0 {
-		imports = "\"os\""
-	}
-	if outlined == "" {
-		outlined = "os.Args[1]"
-	} else {
-		outlined = fmt.Sprintf("%q", outlined)
-	}
 	var prefix string
 	if c.Prefix != "" {
 		prefix, _ = filepath.Abs(c.Prefix)
 	}
 
-	var gz string
+	fn := "StoreFile"
+	if c.OutlinedNoTruncate {
+		fn = "Append"
+	}
 	if !c.NoCompress {
-		gz = "Gz"
+		fn += "Gz"
 	}
 
-	_, err = w.Write([]byte(`package main
+	data := `package main
 
 import (
-	` + imports + `
-
-    "errors"
+	"os"
 	"time"
 
 	bc "github.com/moisespsena-go/xbindata/xbcommon"
@@ -42,32 +32,23 @@ import (
 )
 
 func main() {
-	dest := "assets.xb"
-    if len(os.Args) > 1 {
-		dest = os.Args[1]
-	}
-	if dest == "" {
-		panic(errors.New("destination file is empty"))
-	}
-
-	if err := headers.StoreFile` + gz + `(dest, baseDir); err != nil {
-		panic(err)
+	for _, dest := range os.Args[1:] { 
+		if err := headers.` + fn + `(dest, baseDir); err != nil {
+			panic(err)
+		}
 	}
 }
 
 const baseDir = ` + strconv.Quote(prefix) + `
 var headers = outlined.Headers{
-`))
-	for i := range toc {
-		info, _ := toc[i].InfoExport(c)
-		pth, _ := filepath.Abs(toc[i].Path)
-		if prefix != "" {
-			pth = strings.TrimPrefix(strings.Replace(pth, prefix, "", -1), string(filepath.Separator))
-		}
-		if _, err = fmt.Fprintf(w, "\toutlined.NewHeader(bc.NewFileInfo(%q, %s)),\n", pth, info); err != nil {
-			return err
-		}
+`
+	for _, asset := range toc {
+		info, _ := asset.InfoExport(c)
+		data += fmt.Sprintf("\toutlined.NewHeader(bc.NewFileInfo(%q, %s)),\n", asset.Name, info)
 	}
-	_, err = w.Write([]byte("}\n"))
+
+	data += "}\n"
+
+	_, err = w.Write([]byte(data))
 	return
 }

@@ -80,8 +80,13 @@ func readDir(fs *FileSystem, dir string, cb assetfsapi.CbWalkInfoFunc, skipDir b
 func walk(fs *FileSystem, dir string, cb assetfsapi.CbWalkFunc, mode assetfsapi.WalkMode) (err error) {
 	var n = fs.assets.Root()
 
-	if n, err = n.GetDir(dir); err != nil {
-		return
+	if dir == "" {
+		dir = "."
+	}
+	if dir != "." {
+		if n, err = n.GetDir(dir); err != nil {
+			return
+		}
 	}
 	return n.Walk(func(dir, name string, n xbcommon.Node, _ interface{}) (d interface{}, err error) {
 		isDir := n.IsDir()

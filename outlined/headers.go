@@ -58,22 +58,20 @@ func (headers Headers) Store(w io.Writer, base string) (err error) {
 			return errwrap.Wrap(err, "Header[%d]", i)
 		}
 	}
+
 	return
 }
 
 func (headers Headers) StoreFile(pth string, baseDir string, wrap ...func(w io.WriteCloser) io.WriteCloser) (err error) {
-	fmt.Printf("Writes to %q\n", pth)
+	log.Infof("Writes to %q\n", pth)
 	mode, err := path_helpers.ResolveFileMode(pth)
 	if err != nil {
 		return err
 	}
 
-	f, err := os.Create(pth)
+	f, err := os.OpenFile(pth, os.O_RDWR|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return err
-	}
-	if err = os.Chmod(pth, mode); err != nil {
-		return
 	}
 	var w io.WriteCloser = f
 	for _, wrap := range wrap {
@@ -85,6 +83,46 @@ func (headers Headers) StoreFile(pth string, baseDir string, wrap ...func(w io.W
 
 func (headers Headers) StoreFileGz(pth string, baseDir string) (err error) {
 	return headers.StoreFile(pth+".gz", baseDir, func(w io.WriteCloser) io.WriteCloser {
+		return gzip.NewWriter(w)
+	})
+}
+
+func (headers Headers) Append(pth string, baseDir string, wrap ...func(w io.WriteCloser) io.WriteCloser) (err error) {
+	log.Infof("Appends to %q\n", pth)
+	mode, err := path_helpers.ResolveFileMode(pth)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(pth, os.O_APPEND|os.O_CREATE|os.O_WRONLY, mode)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	s, _ := f.Stat()
+	log.Infof("Old size: %d", s.Size())
+	wc := &writeCounter{WriteCloser: f}
+
+	var w io.WriteCloser = wc
+	for _, wrap := range wrap {
+		w = wrap(w)
+	}
+
+	if err = headers.Store(w, baseDir); err != nil {
+		return
+	}
+	size := wc.count
+	log.Infof("Outilined size: %d", size)
+	err = errwrap.Wrap(binary.Write(w, binaryDir, uint32(size)), "write end size")
+	s, _ = f.Stat()
+	newSize := s.Size()
+	log.Infof("New size: %d", newSize)
+	return
+}
+
+func (headers Headers) AppendGz(pth string, baseDir string) (err error) {
+	return headers.Append(pth, baseDir, func(w io.WriteCloser) io.WriteCloser {
 		return gzip.NewWriter(w)
 	})
 }

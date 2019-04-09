@@ -12,8 +12,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -26,7 +24,7 @@ func writeRelease(w io.Writer, c *Config, toc []Asset) error {
 		return err
 	}
 
-	if !c.Outlined {
+	if !c.Outlined && !c.NoStore {
 		var start int64
 		for i := range toc {
 			err = writeReleaseAsset(start, w, c, &toc[i])
@@ -46,17 +44,28 @@ func writeReleaseHeader(w io.Writer, c *Config, toc []Asset) error {
 	var err error
 	if c.Outlined {
 		err = header_outlined(w, c, toc)
-	} else if c.NoCompress {
-		if c.NoMemCopy {
-			err = header_uncompressed_nomemcopy(w, c)
-		} else {
-			err = header_uncompressed_memcopy(w, c)
-		}
 	} else {
-		if c.NoMemCopy {
-			err = header_compressed_nomemcopy(w, c)
+		if c.NoCompress {
+			if c.NoMemCopy {
+				err = header_uncompressed_nomemcopy(w, c)
+			} else {
+				err = header_uncompressed_memcopy(w, c)
+			}
 		} else {
-			err = header_compressed_memcopy(w, c)
+			if c.NoMemCopy {
+				err = header_compressed_nomemcopy(w, c)
+			} else {
+				err = header_compressed_memcopy(w, c)
+			}
+		}
+
+		if err == nil {
+			_, err = w.Write([]byte(`var (
+    loaded        bool
+    mu            sync.Mutex
+)
+
+`))
 		}
 	}
 	if err != nil {
@@ -153,58 +162,22 @@ func sanitizeChunks(buf *bytes.Buffer, chunks [][]byte) {
 	buf.WriteString("`")
 }
 
-func write_imports(w io.Writer, c *Config, imports ...string) (err error) {
-	imports = append(
-		imports,
-		`bc "github.com/moisespsena-go/xbindata/xbcommon"`,
-		`github.com/moisespsena-go/io-common`,
-	)
-
-	if c.FileSystem {
-		imports = append(
-			imports,
-			`fs "github.com/moisespsena-go/xbindata/xbfs"`,
-		)
-	}
-
-	sort.Slice(imports, func(i, j int) bool {
-		a, b := imports[i], imports[j]
-		ia, ib := strings.IndexByte(a, ' '), strings.IndexByte(b, ' ')
-		if ia == ib {
-			if len(a) < len(b) {
-				return true
-			}
-			if len(a) == len(b) {
-				return a < b
-			}
-			return false
-		} else if ia > 0 && ib < 0 {
-			return false
-		} else if ib > 0 && ia < 0 {
-			return true
-		}
-		return a[0:ia] < b[0:ib]
-	})
-
-	for i, imp := range imports {
-		if imp[len(imp)-1] != '"' {
-			imp = `"` + imp + `"`
-		}
-		imports[i] = "\t" + imp
-	}
-	_, err = fmt.Fprintf(w, "import (\n"+strings.Join(imports, "\n")+"\n)\n")
-	return
-}
-
 func header_compressed_nomemcopy(w io.Writer, c *Config) (err error) {
-	if err = write_imports(w, c,
+	var imports = []string{
 		"compress/gzip",
 		"crypto/sha256",
 		"fmt",
 		"os",
 		"strings",
 		"time",
-	); err != nil {
+		"sync",
+	}
+
+	if c.FileSystem {
+		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	}
+
+	if err = write_imports(w, c, imports...); err != nil {
 		return
 	}
 	_, err = fmt.Fprintf(w, `
@@ -221,16 +194,23 @@ func bindataReader(data, name string) (iocommon.ReadSeekCloser, error) {
 }
 
 func header_compressed_memcopy(w io.Writer, c *Config) (err error) {
-	if err = write_imports(w, c,
+	var imports = []string{
 		"bytes",
 		"compress/gzip",
-		"crypto/sha256",
 		"fmt",
 		"os",
 		"time",
-	); err != nil {
+		"sync",
+	}
+
+	if c.FileSystem {
+		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	}
+
+	if err = write_imports(w, c, imports...); err != nil {
 		return
 	}
+
 	_, err = fmt.Fprintf(w, `
 func bindataReader(data []byte, name string) (iocommon.ReadSeekCloser, error) {
 	gz, err := gzip.NewReader(bytes.NewBuffer(data))
@@ -245,13 +225,20 @@ func bindataReader(data []byte, name string) (iocommon.ReadSeekCloser, error) {
 }
 
 func header_uncompressed_nomemcopy(w io.Writer, c *Config) (err error) {
-	if err = write_imports(w, c,
+	var imports = []string{
 		"crypto/sha256",
 		"os",
 		"reflect",
 		"time",
 		"unsafe",
-	); err != nil {
+		"sync",
+	}
+
+	if c.FileSystem {
+		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	}
+
+	if err = write_imports(w, c, imports...); err != nil {
 		return
 	}
 	_, err = fmt.Fprintf(w, `
@@ -272,7 +259,7 @@ func bindataReader(data *string, name string) (iocommon.ReadSeekCloser, error) {
 }
 
 func header_uncompressed_memcopy(w io.Writer, c *Config) (err error) {
-	if err = write_imports(w, c,
+	var imports = []string{
 		"crypto/sha256",
 		"fmt",
 		"io/ioutil",
@@ -280,10 +267,14 @@ func header_uncompressed_memcopy(w io.Writer, c *Config) (err error) {
 		"path/filepath",
 		"strings",
 		"time",
-	); err != nil {
-		return
+		"sync",
 	}
-	return
+
+	if c.FileSystem {
+		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	}
+
+	return write_imports(w, c, imports...)
 }
 
 func header_outlined(w io.Writer, c *Config, toc []Asset) (err error) {
@@ -311,17 +302,19 @@ func header_outlined(w io.Writer, c *Config, toc []Asset) (err error) {
 	for i := range toc {
 		size += toc[i].Size
 	}
-	var outlineds []string
+	var (
+		outlineds []string
+	)
 
-	if c.Output != "" {
+	if c.OutlinedProgram {
+		outlineds = append(outlineds, "os.Args[0]")
+	} else if c.Output != "" {
 		if !c.NoCompress {
 			outlineds = append(outlineds, strconv.Quote(c.Output+".gz"))
 		}
 		outlineds = append(outlineds, strconv.Quote(c.Output))
 	}
-	if c.OutlineEmbeded {
-		outlineds = append(outlineds, "os.Args[0]")
-	}
+
 	outlined := strings.Join(outlineds, ", ")
 
 	preInit := c.EmbedPreInitSource
@@ -330,11 +323,15 @@ func header_outlined(w io.Writer, c *Config, toc []Asset) (err error) {
 	}
 
 	data := `
+const Size = ` + fmt.Sprint(size) + `
+
 var (
 	_outlined     *outlined.Outlined
 	outlinedPath  string
 	outlinedPaths []string
-    mu           sync.Mutex
+    loaded        bool
+    ended         bool
+    mu            sync.Mutex
 
 	StartPos int64
 	Assets   bc.Assets
@@ -344,7 +341,7 @@ var (
 	OpenOutlined   = br.Open
 	OutlinedReaderFactory = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 		return func() (reader iocommon.ReadSeekCloser, err error) {
-			return OpenOutlined(outlinedPath, start, size)
+			return OpenOutlined(outlinedPath, _outlined.StartPos + start, size)
 		}
 	}
 )
@@ -362,29 +359,44 @@ func Outlined() (archiv *outlined.Outlined, err error) {
         mu.Lock()
 		defer mu.Unlock() 
 
-		if _outlined, err = outlined.OpenFile(outlinedPath); err != nil {
+		if _outlined, err = outlined.OpenFile(outlinedPath, ended); err != nil {
 			return
 		}
 	}
 	return _outlined, nil
 }
 
-func LoadOutlined() {` + preInit + `
+func LoadDefault() {` + preInit + `
 	if outlinedPath == "" {
-		for _, pth := range append(strings.Split(os.Getenv(envName), string(filepath.ListSeparator)), ` + outlined + `) {
+		pths := append(strings.Split(os.Getenv(envName), string(filepath.ListSeparator)), ` + outlined + `)
+		for _, pth := range pths {
     	    if pth == "" { continue }
+`
 
+	if c.OutlinedProgram {
+		data += `
 			if _, err := os.Stat(pth); err == nil {
+				if pth == os.Args[0] {
+					ended = true
+				}
+`
+	} else {
+		data += `
+			if _, err := os.Stat(pth); err == nil {		
+`
+	}
+
+	data += `
 				outlinedPath = pth
 				break;
 			} else if !os.IsNotExist(err) {
 				panic(err)
 			}
 		}
-	}
 
-	if outlinedPath == "" {
-		panic(errors.New("outlined path not defined"))
+		if outlinedPath == "" {
+			panic(errors.New("outlined path not defined"))
+		}
 	}
 
     Assets.Factory = func() (assets map[string]bc.Asset, err error) {`
@@ -397,62 +409,97 @@ func LoadOutlined() {` + preInit + `
 		return archiv.AssetsMap(OutlinedReaderFactory), nil`
 	data += `
 	}
+
+	loaded = true
 }
 
 `
-
-	if c.Hybrid {
-		data += "func IsLocal() bool {\n"
-		data += fmt.Sprintf("\tif _, err := os.Stat(%q); err == nil {\n\t\t", filepath.Join(c.Package, "data"))
-		data += "return true\n\t\t"
-		data += "}\n\t"
-		data += "return false\n}\n\n"
-	}
-
-	data += "func Load() {\n"
-	if c.Hybrid {
-		data += `	if IsLocal() {
-		LoadLocal()
-	} else {
-		LoadOutlined()
-	}
-`
-	} else {
-		data += "LoadOutlined()\n"
-	}
-
-	data += "}\n"
-
-	if !c.NoAutoLoad {
-		data += "\nfunc init() { Load() }\n"
-	}
-
-	data += "\nfunc FS() fsapi.Interface {\n"
-	if c.Hybrid {
-		data += `	if IsLocal() {
-		return LocalFS
-	}
-`
-		data += "\treturn OutlinedFS"
-	}
-	data += "\n}\n"
 
 	_, err = fmt.Fprintf(w, data)
 	return
 }
 
 func header_release_common(w io.Writer, c *Config) (err error) {
+	var data string
 	if c.FileSystem {
 		if c.Hybrid {
-			_, err = fmt.Fprintf(w, `
-var OutlinedFS = fs.NewFileSystem(&Assets)
-`)
+			data += "func IsLocal() bool {\n"
+			data += fmt.Sprintf("\tif _, err := os.Stat(%q); err == nil {\n\t\t", c.Input[0].Path)
+			data += "return true\n\t"
+			data += "}\n\t"
+			data += "return false\n}\n\n"
+		}
+		data += `
+func FS() fsapi.Interface {
+	Load()
+`
+		if c.Hybrid {
+			data += `	if IsLocal() { return LocalFS }
+	return DefaultFS`
 		} else {
-			_, err = fmt.Fprintf(w, `
-var AssetFS fsapi.Interface = fs.NewFileSystem(&Assets)
-`)
+			data += "	return DefaultFS"
+		}
+		data += "\n}\n"
+		data += `
+var DefaultFS fsapi.Interface`
+
+		if c.Outlined {
+			data += `= fs.NewFileSystem(&Assets)
+`
+		} else {
+			data += "\n"
+		}
+
+		if c.Hybrid {
+			data += `var LocalFS = assetfs.NewAssetFileSystem()
+
+func LoadLocal() {
+	var inputs = []string{
+`
+			// Locate all the assets.
+			for _, input := range c.Input {
+				data += fmt.Sprintf("\t\t%q,\n", input.Path)
+			}
+			data += `	}
+	for _, pth := range inputs {
+		if err := LocalFS.RegisterPath(pth); err != nil {
+			panic(err)
 		}
 	}
+}
+`
+		}
+	}
+
+	data += `func Load() {
+    if loaded { return }
+	mu.Lock()
+	defer mu.Unlock()
+	if loaded { return }	
+`
+	if c.Hybrid {
+		data += `	if IsLocal() {
+		LoadLocal()
+	} else {
+		LoadDefault()
+	}
+`
+	} else {
+		data += "	LoadDefault()\n"
+	}
+
+	data += `	loaded = true
+}
+`
+
+	if !c.NoAutoLoad {
+		data += "\nfunc init() { Load() }\n"
+	}
+
+	if data != "" {
+		_, err = fmt.Fprintf(w, data)
+	}
+
 	return
 }
 
@@ -561,7 +608,7 @@ func asset_release_common(start int64, w io.Writer, c *Config, asset *Asset, dig
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(w, `var %s = bc.NewFile(bc.NewFileInfo(%q, %s), %s,  func()[sha256.Size]byte{return %#v})
+	_, err = fmt.Fprintf(w, `var %s = bc.NewFile(bc.NewFileInfo(%q, %s), %s,  &%#v)
 `, asset.Func, asset.Name, info, readerFunc, digest)
 	return err
 }
