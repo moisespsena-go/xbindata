@@ -8,8 +8,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/moisespsena-go/xbindata/outlined"
-	"github.com/moisespsena-go/xbindata/xbcommon"
 	"io"
 	"log"
 	"os"
@@ -19,6 +17,9 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/moisespsena-go/xbindata/outlined"
+	"github.com/moisespsena-go/xbindata/xbcommon"
 
 	"github.com/gobwas/glob"
 
@@ -32,13 +33,26 @@ var (
 	pkgu = strings.NewReplacer("/", "", "\\", "").Replace(pkg)
 )
 
+type tocRegister struct {
+	toc    []Asset
+	byName map[string]int
+}
+
+func (t *tocRegister) Append(asset ...Asset) {
+	for _, asset := range asset {
+		if i, ok := t.byName[asset.Name]; ok {
+			t.toc[i] = asset
+		} else {
+			t.byName[asset.Name] = len(t.toc)
+			t.toc = append(t.toc, asset)
+		}
+	}
+}
+
 // Translate reads assets from an input directory, converts them
 // to Go code and writes new files to the output specified
 // in the given configuration.
 func Translate(c *Config) error {
-	var (
-		toc []Asset
-	)
 
 	// Ensure our configuration has sane values.
 	if err := c.validate(); err != nil {
@@ -48,22 +62,38 @@ func Translate(c *Config) error {
 	var (
 		knownFuncs   = make(map[string]int)
 		visitedPaths = make(map[string]bool)
+		toc          []Asset
 	)
 
-	// Locate all the assets.
-	for _, input := range c.Input {
-		finder := Finder{
-			input.Recursive,
-			&toc,
-			append(c.Ignore, input.Ignore...),
-			append(c.IgnoreGlob, input.IgnoreGlob...),
-			knownFuncs,
-			visitedPaths,
+	{
+		tocr := &tocRegister{byName: map[string]int{}}
+
+		// Locate all the assets.
+		for _, input := range c.Input {
+			finder := Finder{
+				input.Recursive,
+				tocr,
+				append(c.Ignore, input.Ignore...),
+				append(c.IgnoreGlob, input.IgnoreGlob...),
+				knownFuncs,
+				visitedPaths,
+			}
+
+			prefix := c.Prefix
+			if input.Prefix != "" {
+				prefix = input.Prefix
+			}
+
+			if err := finder.find(input.Path, prefix); err != nil {
+				return err
+			}
 		}
 
-		if err := finder.find(input.Path, c.Prefix); err != nil {
-			return err
-		}
+		sort.Slice(tocr.toc, func(i, j int) bool {
+			return tocr.toc[i].Name < tocr.toc[j].Name
+		})
+
+		toc = tocr.toc
 	}
 
 	// Create output file.
@@ -234,9 +264,16 @@ func Translate(c *Config) error {
 
 		if !c.OutlinedProgram || c.Output != OutputToProgram {
 			headers := make(outlined.Headers, len(toc))
+
+			cwd, _ := os.Getwd()
+
 			for i, asset := range toc {
 				info, _ := asset.Info()
-				headers[i] = outlined.NewHeader(xbcommon.NewFileInfo(asset.Name, info.Size(), info.Mode(), info.ModTime(), asset.ctime))
+				rpth, err := filepath.Rel(cwd, asset.Path)
+				if err != nil {
+					rpth = asset.Path
+				}
+				headers[i] = outlined.NewHeader(xbcommon.NewFileInfo(asset.Name, info.Size(), info.Mode(), info.ModTime(), asset.ctime), rpth)
 			}
 			outputFile := c.Output
 			if outputFile, err = filepath.Abs(outputFile); err != nil {
@@ -244,11 +281,11 @@ func Translate(c *Config) error {
 			}
 			log.Println("destination file: `" + outputFile + "`")
 			if c.OutlinedProgram {
-				err = headers.Append(outputFile, c.Prefix)
+				err = headers.Append(outputFile)
 			} else if c.NoCompress {
-				err = headers.StoreFile(outputFile, c.Prefix)
+				err = headers.StoreFile(outputFile)
 			} else {
-				err = headers.StoreFileGz(outputFile, c.Prefix)
+				err = headers.StoreFileGz(outputFile)
 			}
 		}
 	}

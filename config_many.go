@@ -56,8 +56,9 @@ func (s ManyConfigInputSlice) Items() (r []InputConfig, err error) {
 
 type ManyConfigInput struct {
 	Path       string
+	Prefix     string
 	Recursive  bool
-	Ignore     IgnoreSlice     `mapstructure:""`
+	Ignore     IgnoreSlice
 	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
 }
 
@@ -65,6 +66,11 @@ func (i ManyConfigInput) Config() (c *InputConfig, err error) {
 	c = &InputConfig{
 		Path:      i.Path,
 		Recursive: i.Recursive,
+		Prefix:    i.Prefix,
+	}
+
+	if i.Prefix == "_" {
+		c.Prefix = i.Path
 	}
 
 	if c.IgnoreGlob, err = i.IgnoreGlob.Items(); err != nil {

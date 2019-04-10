@@ -16,7 +16,7 @@ import (
 // for each file, which will be used when generating the output code.
 type Finder struct {
 	recursive    bool
-	toc          *[]Asset
+	toc          *tocRegister
 	ignore       []*regexp.Regexp
 	ignoreGlob   []glob.Glob
 	knownFuncs   map[string]int
@@ -132,7 +132,7 @@ func (f Finder) find(dir, prefix string) (err error) {
 			return err
 		}
 		asset.Size = file.Size()
-		*f.toc = append(*f.toc, asset)
+		f.toc.Append(asset)
 	}
 
 	return nil

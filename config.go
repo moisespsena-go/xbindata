@@ -39,6 +39,8 @@ type InputConfig struct {
 	//
 	// This parameter can be provided multiple times.
 	IgnoreGlob []glob.Glob
+
+	Prefix string
 }
 
 // Config defines a set of options for the asset conversion.

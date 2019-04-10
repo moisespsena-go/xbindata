@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 
-	"path/filepath"
-
 	"github.com/moisespsena-go/xbindata/xbcommon"
 )
 
@@ -16,6 +14,7 @@ type Header struct {
 	digest     *[sha256.Size]byte
 	storeSize  int64
 	compressed bool
+	SysPath    string
 }
 
 func (a *Header) Compressed(storeSize int64) *Header {
@@ -28,8 +27,8 @@ func (a *Header) IsCompressed() bool {
 	return a.compressed
 }
 
-func NewHeader(fileInfo *xbcommon.FileInfo) *Header {
-	return &Header{FileInfo: fileInfo}
+func NewHeader(fileInfo *xbcommon.FileInfo, sysPath string) *Header {
+	return &Header{FileInfo: fileInfo, SysPath: sysPath}
 }
 
 func (a *Header) Digest() *[sha256.Size]byte {
@@ -43,11 +42,11 @@ func (a *Header) DigestReader() func() [sha256.Size]byte {
 	}
 }
 
-func (a *Header) LoadDigest(baseDir string, allW ...io.Writer) error {
+func (a *Header) LoadDigest(allW ...io.Writer) error {
 	if a.digest != nil {
 		return nil
 	}
-	f, err := os.Open(filepath.Join(baseDir, a.Path()))
+	f, err := os.Open(a.SysPath)
 	if err != nil {
 		return err
 	}

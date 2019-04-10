@@ -94,4 +94,23 @@ const configTemplate = `# #### EXAMPLE ####
 #     inputs:
 #       - path: assets/program/assets
 #         recursive: true
+# 
+# ## with many inputs ##
+#   - pkg: assets
+#     prefix: _
+#     fs: true
+#     hybrid: true
+#     compressed: false
+#     inputs:
+#       - path: inputs/a
+#         prefix: _
+#         recursive: true
+# 
+#       - path: inputs/b
+#         prefix: _
+#         recursive: true
+# 
+#       - path: another_input
+#         prefix: _
+#         recursive: true
 `

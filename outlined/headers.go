@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
@@ -22,11 +21,11 @@ type Headers []*Header
 
 var binaryDir = xbcommon.BinaryDir
 
-func (headers Headers) Store(w io.Writer, base string) (err error) {
+func (headers Headers) Store(w io.Writer) (err error) {
 	cHash := sha256.New()
 
 	for i, asset := range headers {
-		if err = asset.LoadDigest(base, cHash); err != nil {
+		if err = asset.LoadDigest(cHash); err != nil {
 			return errwrap.Wrap(err, "Header[%d] Load Digest", i)
 		}
 	}
@@ -54,7 +53,7 @@ func (headers Headers) Store(w io.Writer, base string) (err error) {
 	}
 
 	for i := range headers {
-		if err = headers.do(i, base, w); err != nil {
+		if err = headers.do(i, w); err != nil {
 			return errwrap.Wrap(err, "Header[%d]", i)
 		}
 	}
@@ -62,7 +61,7 @@ func (headers Headers) Store(w io.Writer, base string) (err error) {
 	return
 }
 
-func (headers Headers) StoreFile(pth string, baseDir string, wrap ...func(w io.WriteCloser) io.WriteCloser) (err error) {
+func (headers Headers) StoreFile(pth string, wrap ...func(w io.WriteCloser) io.WriteCloser) (err error) {
 	log.Infof("Writes to %q\n", pth)
 	mode, err := path_helpers.ResolveFileMode(pth)
 	if err != nil {
@@ -78,16 +77,16 @@ func (headers Headers) StoreFile(pth string, baseDir string, wrap ...func(w io.W
 		w = wrap(w)
 	}
 	defer w.Close()
-	return headers.Store(w, baseDir)
+	return headers.Store(w)
 }
 
-func (headers Headers) StoreFileGz(pth string, baseDir string) (err error) {
-	return headers.StoreFile(pth+".gz", baseDir, func(w io.WriteCloser) io.WriteCloser {
+func (headers Headers) StoreFileGz(pth string) (err error) {
+	return headers.StoreFile(pth+".gz", func(w io.WriteCloser) io.WriteCloser {
 		return gzip.NewWriter(w)
 	})
 }
 
-func (headers Headers) Append(pth string, baseDir string, wrap ...func(w io.WriteCloser) io.WriteCloser) (err error) {
+func (headers Headers) Append(pth string, wrap ...func(w io.WriteCloser) io.WriteCloser) (err error) {
 	log.Infof("Appends to %q\n", pth)
 	mode, err := path_helpers.ResolveFileMode(pth)
 	if err != nil {
@@ -109,7 +108,7 @@ func (headers Headers) Append(pth string, baseDir string, wrap ...func(w io.Writ
 		w = wrap(w)
 	}
 
-	if err = headers.Store(w, baseDir); err != nil {
+	if err = headers.Store(w); err != nil {
 		return
 	}
 	size := wc.count
@@ -121,24 +120,20 @@ func (headers Headers) Append(pth string, baseDir string, wrap ...func(w io.Writ
 	return
 }
 
-func (headers Headers) AppendGz(pth string, baseDir string) (err error) {
-	return headers.Append(pth, baseDir, func(w io.WriteCloser) io.WriteCloser {
+func (headers Headers) AppendGz(pth string) (err error) {
+	return headers.Append(pth, func(w io.WriteCloser) io.WriteCloser {
 		return gzip.NewWriter(w)
 	})
 }
 
-func (headers Headers) do(i int, base string, w io.Writer) (err error) {
+func (headers Headers) do(i int, w io.Writer) (err error) {
 	a := headers[i]
 	defer func() {
 		if err != nil {
 			err = errwrap.Wrap(err, "%q", a.Path())
 		}
 	}()
-	pth := a.Path()
-	if base != "" {
-		pth = filepath.Join(base, pth)
-	}
-	s, err := os.Stat(pth)
+	s, err := os.Stat(a.SysPath)
 	if err != nil {
 		return errors.New("os.Stat")
 	}
@@ -147,7 +142,7 @@ func (headers Headers) do(i int, base string, w io.Writer) (err error) {
 		return errors.New("File size changed.")
 	}
 
-	r, err := os.Open(pth)
+	r, err := os.Open(a.SysPath)
 	if err != nil {
 		return
 	}
