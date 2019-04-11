@@ -7,12 +7,19 @@ import (
 )
 
 type writeCounter struct {
-	io.WriteCloser
+	io.Writer
 	count int64
 }
 
+func (w *writeCounter) Close() error {
+	if closer, ok := w.Writer.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
 func (w *writeCounter) Write(p []byte) (n int, err error) {
-	n, err = w.WriteCloser.Write(p)
+	n, err = w.Writer.Write(p)
 	w.count += int64(n)
 	return
 }

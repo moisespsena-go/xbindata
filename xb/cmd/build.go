@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 
@@ -61,6 +62,20 @@ var (
 			var cfg xbindata.ManyConfig
 			if err = unmarshalConfig(&cfg); err != nil {
 				return
+			}
+
+			if cfgFile, err = filepath.Abs(cfgFile); err != nil {
+				return
+			}
+
+			var cwd string
+
+			if cwd, err = os.Getwd(); err != nil {
+				return
+			} else if cwd != filepath.Dir(cfgFile) {
+				if err = os.Chdir(filepath.Dir(cfgFile)); err != nil {
+					return
+				}
 			}
 
 			if err = cfg.Validate(); err != nil {

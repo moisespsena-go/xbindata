@@ -262,7 +262,7 @@ func Translate(c *Config) error {
 			}
 		}
 
-		if !c.OutlinedProgram || c.Output != OutputToProgram {
+		if !c.OutlinedProgram || (c.OutputWriter != nil || c.Output != OutputToProgram) {
 			headers := make(outlined.Headers, len(toc))
 
 			cwd, _ := os.Getwd()
@@ -275,17 +275,22 @@ func Translate(c *Config) error {
 				}
 				headers[i] = outlined.NewHeader(xbcommon.NewFileInfo(asset.Name, info.Size(), info.Mode(), info.ModTime(), asset.ctime), rpth)
 			}
-			outputFile := c.Output
-			if outputFile, err = filepath.Abs(outputFile); err != nil {
-				return fmt.Errorf("abs path failed: %v", err.Error())
-			}
-			log.Println("destination file: `" + outputFile + "`")
-			if c.OutlinedProgram {
-				err = headers.Append(outputFile)
-			} else if c.NoCompress {
-				err = headers.StoreFile(outputFile)
+
+			if c.OutlinedProgram && c.OutputWriter != nil {
+				err = headers.AppendW(c.OutputWriter)
 			} else {
-				err = headers.StoreFileGz(outputFile)
+				outputFile := c.Output
+				if outputFile, err = filepath.Abs(outputFile); err != nil {
+					return fmt.Errorf("abs path failed: %v", err.Error())
+				}
+				log.Println("destination file: `" + outputFile + "`")
+				if c.OutlinedProgram {
+					err = headers.Append(outputFile)
+				} else if c.NoCompress {
+					err = headers.StoreFile(outputFile)
+				} else {
+					err = headers.StoreFileGz(outputFile)
+				}
 			}
 		}
 	}

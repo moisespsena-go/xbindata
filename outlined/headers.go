@@ -101,22 +101,24 @@ func (headers Headers) Append(pth string, wrap ...func(w io.WriteCloser) io.Writ
 
 	s, _ := f.Stat()
 	log.Infof("Old size: %d", s.Size())
-	wc := &writeCounter{WriteCloser: f}
 
-	var w io.WriteCloser = wc
-	for _, wrap := range wrap {
-		w = wrap(w)
+	if err = headers.AppendW(f); err == nil {
+		s, _ = f.Stat()
+		newSize := s.Size()
+		log.Infof("New size: %d", newSize)
 	}
+	return
+}
 
+func (headers Headers) AppendW(w io.Writer) (err error) {
+	wc := &writeCounter{Writer: w}
+	w = wc
 	if err = headers.Store(w); err != nil {
 		return
 	}
 	size := wc.count
-	log.Infof("Outilined size: %d", size)
+	log.Infof("Outlined size: %d", size)
 	err = errwrap.Wrap(binary.Write(w, binaryDir, uint32(size)), "write end size")
-	s, _ = f.Stat()
-	newSize := s.Size()
-	log.Infof("New size: %d", newSize)
 	return
 }
 

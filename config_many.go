@@ -12,6 +12,7 @@ import (
 
 const (
 	OutputToProgram = "_"
+	OutputToStdout  = "-"
 	DefaultDataDir  = "assets"
 )
 
@@ -241,6 +242,23 @@ func (a *ManyConfigOutlined) Translate() (err error) {
 type ManyConfig struct {
 	Embedded []ManyConfigEmbedded
 	Outlined []ManyConfigOutlined
+}
+
+func (c *ManyConfig) InputsRelTo(baseDir string) {
+	for _, cfg := range c.Embedded {
+		for _, input := range cfg.Inputs {
+			if newPth, err := filepath.Rel(baseDir, input.Path); err == nil {
+				input.Path = newPth
+			}
+		}
+	}
+	for _, cfg := range c.Outlined {
+		for _, input := range cfg.Inputs {
+			if newPth, err := filepath.Rel(baseDir, input.Path); err == nil {
+				input.Path = newPth
+			}
+		}
+	}
 }
 
 func (c *ManyConfig) Validate() (err error) {

@@ -6,6 +6,7 @@ package xbindata
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -62,6 +63,9 @@ type Config struct {
 	// If left empty, this defaults to 'xbindata.go' in the current
 	// working directory.
 	Output string
+
+	// OutputWriter defines the output writer for the generated code.
+	OutputWriter io.Writer
 
 	// Prefix defines a path prefix which should be stripped from all
 	// file names when generating the keys in the table of contents.
