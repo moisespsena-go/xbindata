@@ -461,7 +461,7 @@ func LoadLocal() {
 				data += fmt.Sprintf("\t\t%q,\n", input.Path)
 			}
 			data += `	}
-	localDir := filepath.Join("_assets", filepath.FromSlash(pkg))
+	localDir := filepath.Join("` + c.OutlinedLocalOutputDir + `", filepath.FromSlash(pkg))
 	if _, err := os.Stat(localDir); err == nil {
 		for i, pth := range inputs {
 			inputs[i] = filepath.Join(localDir, pth)

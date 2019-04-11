@@ -140,6 +140,8 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 	flag := buildCmd.Flags()
 	flag.BoolP("program", "P", false, "build outlined and append contents into program")
+	flag.StringP("outlined-output-dir", "d", "_assets", "The outlined output root dir")
+	flag.StringP("outlined-output-local-dir", "D", "_assets", "The outlined Local FS root dir")
 
 	buildCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./.xb.yaml)")
 }

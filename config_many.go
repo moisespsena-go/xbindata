@@ -216,7 +216,7 @@ func (a *ManyConfigOutlined) Config() (c *Config, err error) {
 	c.Output = ""
 
 	if a.Output == "" && !a.Program {
-		c.Output = filepath.Join("_assets", filepath.FromSlash(a.Pkg)+".xb")
+		c.Output = filepath.Join(c.OutlinedOutputDir, filepath.FromSlash(a.Pkg)+".xb")
 	} else {
 		c.Output = a.Output
 	}

@@ -184,6 +184,10 @@ type Config struct {
 	// Outlined assets content into binary file. Do not compile it.
 	Outlined bool
 
+	OutlinedOutputDir string
+
+	OutlinedLocalOutputDir string
+
 	//
 	OutlineEmbeded bool
 
@@ -234,6 +238,14 @@ func (c *Config) validate() error {
 	}
 
 	if c.Outlined {
+		if c.OutlinedOutputDir == "" {
+			c.OutlinedOutputDir = "_assets"
+		}
+
+		if c.OutlinedLocalOutputDir == "" {
+			c.OutlinedLocalOutputDir = filepath.Base(c.OutlinedOutputDir)
+		}
+
 		if c.Output == "" {
 			if c.OutlinedProgram {
 				c.Output = OutputToProgram

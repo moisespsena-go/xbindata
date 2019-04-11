@@ -103,7 +103,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:00824391de74e966719598dc92b0771d6a8f212e4c02649aef5c5f4ce3c539ca"
+  digest = "1:171b271deb2d9c2fbd19f32a77ab77ce83bbfbf9e6dd918a54db609c26c1551a"
   name = "github.com/moisespsena-go/assetfs"
   packages = [
     ".",
@@ -113,7 +113,7 @@
     "repository/templates",
   ]
   pruneopts = "UT"
-  revision = "5dbe35f3f2486cdd05c0a9951bf99672c1914485"
+  revision = "f6ca5e6f828c1affbb9b1e00169be33e9033b4d1"
 
 [[projects]]
   branch = "master"
@@ -325,6 +325,7 @@
     "github.com/dustin/go-humanize",
     "github.com/go-errors/errors",
     "github.com/gobwas/glob",
+    "github.com/gobwas/glob/syntax",
     "github.com/mitchellh/mapstructure",
     "github.com/moisespsena-go/assetfs",
     "github.com/moisespsena-go/assetfs/assetfsapi",

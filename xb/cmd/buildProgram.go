@@ -20,6 +20,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/moisespsena-go/assetfs"
+
+	"github.com/gobwas/glob/syntax"
+
 	"github.com/moisespsena-go/error-wrap"
 
 	"github.com/moisespsena-go/xbindata"
@@ -42,11 +46,48 @@ var buildProgramCmd = &cobra.Command{
 		return cobra.MinimumNArgs(1)(cmd, args)
 	},
 	Short: "Build outlined pkg program into one or more program executables",
+	Long: `Build outlined pkg program into one or more program executables.
+
+PROGRAM_PATH is path of program. Accepts Glob pattern (https://github.com/gobwas/glob).
+
+Examples:
+	$ ` + prog + ` build program ./dist/linux_amd64/program
+	$ ` + prog + ` build program ./dist/linux_*/program
+	$ cat ./dist/linux_amd64/program | ` + prog + ` build program > ./dist/linux_amd64/program_with_assets
+
+	To stdout:
+	$ ` + prog + ` build program -
+`,
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
-		var cfg xbindata.ManyConfig
-		if err = unmarshalConfig(&cfg); err != nil {
-			return
+		var (
+			cfg     xbindata.ManyConfig
+			newArgs []string
+		)
+
+	largs:
+		for _, pth := range args {
+			for i := 0; i < len(pth); i++ {
+				if syntax.Special(pth[i]) {
+					g := assetfs.NewSimpleGlobPattern(pth)
+					err = filepath.Walk(filepath.FromSlash(g.Dir()), func(path string, info os.FileInfo, err error) error {
+						if err != nil {
+							return err
+						}
+						if g.Match(filepath.ToSlash(path)) {
+							newArgs = append(newArgs, path)
+						}
+						return nil
+					})
+					if err != nil {
+						return errwrap.Wrap(err, "Walk %q", g.Dir())
+					}
+					continue largs
+				}
+			}
+			newArgs = append(newArgs, pth)
 		}
+
+		args = newArgs
 
 		if cfgFile, err = filepath.Abs(cfgFile); err != nil {
 			return
@@ -54,12 +95,15 @@ var buildProgramCmd = &cobra.Command{
 
 		var cwd string
 
+		var toStdout bool
+
 		if cwd, err = os.Getwd(); err != nil {
 			return
 		} else if cwd != filepath.Dir(cfgFile) {
 			cwd = filepath.Dir(cfgFile)
 			for i, arg := range args {
 				if arg == xbindata.OutputToStdout {
+					toStdout = true
 					continue
 				}
 				if !filepath.IsAbs(arg) {
@@ -74,6 +118,32 @@ var buildProgramCmd = &cobra.Command{
 			if err = os.Chdir(cwd); err != nil {
 				return
 			}
+		}
+
+		var (
+			fi    os.FileInfo
+			piped bool
+		)
+
+		fi, err = os.Stdin.Stat()
+		if err != nil {
+			return errwrap.Wrap(err, "stat of Stdin")
+		}
+
+		if fi.Mode()&os.ModeNamedPipe != 0 {
+			piped = true
+			if !toStdout {
+				args = append(args, xbindata.OutputToStdout)
+			}
+		}
+
+		if len(args) == 0 {
+			log.Println("no outputs")
+			os.Exit(1)
+		}
+
+		if err = unmarshalConfig(&cfg); err != nil {
+			return
 		}
 
 		if err = cfg.Validate(); err != nil {
@@ -91,26 +161,15 @@ var buildProgramCmd = &cobra.Command{
 				c.NoCompress = true
 				c.OulinedSkipApi = true
 
-				var fi os.FileInfo
-
-				fi, err = os.Stdin.Stat()
-				if err != nil {
-					return errwrap.Wrap(err, "stat of Stdin")
-				}
-
-				if fi.Mode()&os.ModeNamedPipe != 0 {
-					if _, err = io.Copy(os.Stdout, os.Stdin); err != nil {
-						return
-					}
-					if len(args) == 0 {
-						args = append(args, xbindata.OutputToStdout)
-					}
-				}
-
 				for _, pth := range args {
 					log.Println("translating outlined " + cfg.Pkg + " into `" + pth + "`")
 					c.OutputWriter = nil
 					if pth == xbindata.OutputToStdout {
+						if piped {
+							if _, err = io.Copy(os.Stdout, os.Stdin); err != nil {
+								return
+							}
+						}
 						c.OutputWriter = os.Stdout
 					}
 					c.Output = pth
