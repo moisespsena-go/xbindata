@@ -103,17 +103,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:171b271deb2d9c2fbd19f32a77ab77ce83bbfbf9e6dd918a54db609c26c1551a"
+  digest = "1:b44d53c23020bcc3a9de9942e92039931c1ea92a8a319ab73dde160933b996ef"
   name = "github.com/moisespsena-go/assetfs"
   packages = [
     ".",
     "assetfsapi",
-    "repository",
-    "repository/api",
-    "repository/templates",
+    "local",
   ]
   pruneopts = "UT"
-  revision = "f6ca5e6f828c1affbb9b1e00169be33e9033b4d1"
+  revision = "4eef90af121f38b228177482de6505c78898e203"
 
 [[projects]]
   branch = "master"
@@ -178,30 +176,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "cf153894ff4866d71c79ed6b3cf64df2292d1769"
-
-[[projects]]
-  branch = "master"
-  digest = "1:4923ba060658bf04ca6983f05308c654f7bab404d375680e6170aebf7fa2ba68"
-  name = "github.com/moisespsena-go/sortvalues"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "c76cf8626ebb9865e511c2c05b22ce8ea1614fa9"
-
-[[projects]]
-  branch = "master"
-  digest = "1:d5d15df61bb1b1691167244bfcab87cfbe69cd07d897cc64daa3b31a3f040c49"
-  name = "github.com/moisespsena-go/topsort"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "4aff0affc141e521e1a9e6716dbefccabdcff4ca"
-
-[[projects]]
-  branch = "master"
-  digest = "1:5dcf2c2177374948f6e1d7abb57705213c080b25ed3aee55e5fd5be6ca4e0624"
-  name = "github.com/moisespsena-go/assetfs"
-  packages = ["assetfsapi"]
-  pruneopts = "UT"
-  revision = "f6ca5e6f828c1affbb9b1e00169be33e9033b4d1"
 
 [[projects]]
   branch = "master"
@@ -318,6 +292,14 @@
   version = "v0.3.0"
 
 [[projects]]
+  digest = "1:b7b063b8125b7aeaf179aa4564ba60c896551d702f7c824ace98cc654fc813a0"
+  name = "gopkg.in/djherbis/times.v1"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "847c5208d8924cea0acea3376ff62aede93afe39"
+  version = "v1.2.0"
+
+[[projects]]
   digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -337,8 +319,7 @@
     "github.com/mitchellh/mapstructure",
     "github.com/moisespsena-go/assetfs",
     "github.com/moisespsena-go/assetfs/assetfsapi",
-    "github.com/moisespsena-go/assetfs/repository",
-    "github.com/moisespsena-go/assetfs/repository/api",
+    "github.com/moisespsena-go/assetfs/local",
     "github.com/moisespsena-go/bits2str",
     "github.com/moisespsena-go/error-wrap",
     "github.com/moisespsena-go/file-utils",
@@ -346,7 +327,6 @@
     "github.com/moisespsena-go/os-common",
     "github.com/moisespsena-go/path-helpers",
     "github.com/moisespsena-go/rpool",
-    "github.com/moisespsena-go/assetfs/assetfsapi",
     "github.com/op/go-logging",
     "github.com/phayes/permbits",
     "github.com/pkg/errors",
