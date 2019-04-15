@@ -15,7 +15,6 @@ import (
 	bc "github.com/moisespsena-go/xbindata/xbcommon"
 	"github.com/moisespsena-go/xbindata/xbfs"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -66,14 +65,6 @@ func LoadLocal() {
 	var inputs = []string{
 		"assets/inputs/a",
 	}
-	localDir := filepath.Join("", filepath.FromSlash(pkg))
-	if _, err := os.Stat(localDir); err == nil {
-		for i, pth := range inputs {
-			inputs[i] = filepath.Join(localDir, pth)
-		}
-	} else if !os.IsNotExist(err) {
-		panic(err)
-	}
 	for _, pth := range inputs {
 		if err := LocalFS.RegisterPath(pth); err != nil {
 			panic(err)
@@ -112,13 +103,13 @@ func aTxtReader() (iocommon.ReadSeekCloser, error) {
 
 var aTxt = bc.NewFile(bc.NewFileInfo("a.txt", 1, os.FileMode(436), time.Unix(1554918023, 0), time.Unix(1554918023, 0)), aTxtReader, &[32]uint8{0x55, 0x9a, 0xea, 0xd0, 0x82, 0x64, 0xd5, 0x79, 0x5d, 0x39, 0x9, 0x71, 0x8c, 0xdd, 0x5, 0xab, 0xd4, 0x95, 0x72, 0xe8, 0x4f, 0xe5, 0x55, 0x90, 0xee, 0xf3, 0x1a, 0x88, 0xa0, 0x8f, 0xdf, 0xfd})
 
-// Embed is a table, holding each asset generator, mapped to its name.
-var Embed *bc.Assets
+// Assets is a table, holding each asset generator, mapped to its name.
+var Assets *bc.Assets
 
 func LoadDefault() {
-	Embed = bc.NewAssets(
+	Assets = bc.NewAssets(
 		aTxt,
 	)
 
-	DefaultFS = xbfs.NewFileSystem(Embed)
+	DefaultFS = xbfs.NewFileSystem(Assets)
 }

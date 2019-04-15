@@ -13,7 +13,6 @@ import (
 	"github.com/moisespsena-go/xbindata/xbfs"
 	br "github.com/moisespsena-go/xbindata/xbreader"
 	"os"
-	"path"
 	"path/filepath"
 	"sync"
 )

@@ -327,18 +327,19 @@ func header_uncompressed_memcopy(w io.Writer, c *Config, imports ...string) (err
 func header_outlined(w io.Writer, c *Config, toc []Asset, imports ...string) (err error) {
 	imports = append(imports,
 		"os",
-		"path",
 		`br "github.com/moisespsena-go/xbindata/xbreader"`,
 		`"github.com/moisespsena-go/xbindata/outlined"`,
 		"github.com/moisespsena-go/path-helpers",
 		`fsapi "github.com/moisespsena-go/assetfs/assetfsapi"`,
 		"sync",
-		"path/filepath",
 		"errors",
 	)
 
 	if c.Hybrid {
-		imports = append(imports, "github.com/moisespsena-go/assetfs")
+		imports = append(imports,
+			"path/filepath",
+			"github.com/moisespsena-go/assetfs",
+		)
 	}
 
 	if err = write_imports(w, c, imports...); err != nil {

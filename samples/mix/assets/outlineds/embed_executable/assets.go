@@ -4,7 +4,6 @@ package embed_executable
 
 import (
 	"errors"
-	"github.com/moisespsena-go/assetfs"
 	fsapi "github.com/moisespsena-go/assetfs/assetfsapi"
 	"github.com/moisespsena-go/io-common"
 	"github.com/moisespsena-go/path-helpers"
@@ -14,7 +13,6 @@ import (
 	"github.com/moisespsena-go/xbindata/xbfs"
 	br "github.com/moisespsena-go/xbindata/xbreader"
 	"os"
-	"path/filepath"
 	"sync"
 )
 
@@ -111,41 +109,12 @@ func callFsLoadCallbacks() {
 	}
 }
 
-func IsLocal() bool {
-	if _, err := os.Stat("assets/inputs/a"); err == nil {
-		return true
-	}
-	return false
-}
-
 func FS() fsapi.Interface {
 	Load()
 	return fs
 }
 
 var DefaultFS fsapi.Interface = xbfs.NewFileSystem(&Assets)
-var LocalFS = assetfs.NewAssetFileSystem()
-
-func LoadLocal() {
-	var inputs = []string{
-		"assets/inputs/a",
-		"assets/inputs/b",
-		"assets/inputs/c",
-	}
-	localDir := filepath.Join("_assets", filepath.FromSlash(pkg))
-	if _, err := os.Stat(localDir); err == nil {
-		for i, pth := range inputs {
-			inputs[i] = filepath.Join(localDir, pth)
-		}
-	} else if !os.IsNotExist(err) {
-		panic(err)
-	}
-	for _, pth := range inputs {
-		if err := LocalFS.RegisterPath(pth); err != nil {
-			panic(err)
-		}
-	}
-}
 
 func Load() {
 	if loaded {
@@ -159,11 +128,6 @@ func Load() {
 	defer callFsLoadCallbacks()
 	defer mu.Unlock()
 	defer func() { loaded = true }()
-	if IsLocal() {
-		LoadLocal()
-		fs = LocalFS
-		return
-	}
 	LoadDefault()
 	fs = DefaultFS
 }

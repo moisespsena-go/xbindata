@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
-
-	"github.com/moisespsena-go/xbindata/samples/mix/assets/embed_go_source/e_multiple_inputs_mix_prefix"
+	"github.com/moisespsena-go/xbindata/samples/mix/assets/outlineds/embed_executable"
 )
 
 func main() {
-	fmt.Println(e_multiple_inputs_mix_prefix.FS().MustAsset("a.txt").MustDataS())
+	fmt.Println(embed_executable.FS().MustAsset("a.txt").MustDataS())
 }
