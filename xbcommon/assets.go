@@ -1,20 +1,33 @@
 package xbcommon
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
 
+	"github.com/moisespsena-go/assetfs"
+	"github.com/moisespsena-go/assetfs/assetfsapi"
+	"github.com/moisespsena-go/path-helpers"
+	"github.com/op/go-logging"
+
+	"github.com/moisespsena-go/assetfs/local"
+
 	"github.com/moisespsena-go/os-common"
 )
+
+var log = logging.MustGetLogger(path_helpers.GetCalledDir())
 
 type Assets struct {
 	root    NodeDir
 	Assets  *map[string]Asset
 	mu      sync.Mutex
 	Factory func() (assets map[string]Asset, err error)
+
+	local.LocalSourcesAttribute
 }
 
 func NewAssets(assets ...Asset) *Assets {
@@ -61,8 +74,42 @@ func (assets *Assets) Root() NodeDir {
 }
 
 func (assets *Assets) Get(name string) (asset Asset, ok bool) {
+	return assets.GetC(nil, name)
+}
+
+func (assets *Assets) MustGet(name string) (asset Asset) {
+	asset, _ = assets.GetC(nil, name)
+	return
+}
+
+func (assets *Assets) GetC(ctx context.Context, name string) (asset Asset, ok bool) {
 	assets.check()
+
+	if ctx != nil {
+		for _, src := range local.AllSources(assets.LocalSources(), ctx) {
+			if info, err := src.Get(name); err != nil {
+				if !os.IsNotExist(err) {
+					log.Warningf("source «%T» %s get info for %q failed: %v", src, src, name, err)
+				}
+			} else if !info.IsDir() {
+				localAsset := assetfs.NewRealFileInfo(assetfsapi.OsFileInfoToBasic(name, info), info.Path())
+				if asset, ok = (*assets.Assets)[name]; ok {
+					asset = &LocalFile{RealFileInfo: localAsset, nodeCommon: asset.(*File).nodeCommon}
+					return
+				}
+				ok = true
+				asset = &LocalFile{RealFileInfo: localAsset}
+				return
+			}
+		}
+	}
+
 	asset, ok = (*assets.Assets)[name]
+	return
+}
+
+func (assets *Assets) MustGetC(ctx context.Context, name string) (asset Asset) {
+	asset, _ = assets.GetC(ctx, name)
 	return
 }
 

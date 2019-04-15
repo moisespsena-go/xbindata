@@ -37,7 +37,9 @@ type Asset interface {
 	Reader() (iocommon.ReadSeekCloser, error)
 	Digest() [sha256.Size]byte
 	Data() ([]byte, error)
-	String() (string, error)
+	DataS() (string, error)
+	MustData() []byte
+	MustDataS() string
 }
 
 type nodeCommonInterface interface {

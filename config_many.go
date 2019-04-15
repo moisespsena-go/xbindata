@@ -2,8 +2,12 @@ package xbindata
 
 import (
 	"fmt"
+	"os"
+	"path"
 	"path/filepath"
 	"regexp"
+
+	"github.com/moisespsena-go/path-helpers"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -84,19 +88,22 @@ func (i ManyConfigInput) Config() (c *InputConfig, err error) {
 }
 
 type ManyConfigCommon struct {
-	NoAutoLoad bool `mapstructure:"no_auto_load" yaml:"no_auto_load"`
-	NoCompress bool `mapstructure:"no_compress" yaml:"no_compress"`
-	NoMetadata bool `mapstructure:"no_metadata" yaml:"no_metadata"`
-	Mode       uint
-	ModTime    int64 `mapstructure:"mod_time" yaml:"mod_time"`
-	Ignore     IgnoreSlice
-	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
-	Inputs     ManyConfigInputSlice
-	Pkg        string
-	Output     string
-	Prefix     string
-	Fs         bool
-	Hybrid     bool
+	Disabled        bool
+	NoAutoLoad      bool `mapstructure:"no_auto_load" yaml:"no_auto_load"`
+	NoCompress      bool `mapstructure:"no_compress" yaml:"no_compress"`
+	NoMetadata      bool `mapstructure:"no_metadata" yaml:"no_metadata"`
+	NoMemCopy       bool `mapstructure:"no_mem_copy" yaml:"no_mem_copy"`
+	Mode            uint
+	ModTime         int64 `mapstructure:"mod_time" yaml:"mod_time"`
+	Ignore          IgnoreSlice
+	IgnoreGlob      IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
+	Inputs          ManyConfigInputSlice
+	Pkg             string
+	Output          string
+	Prefix          string
+	Hybrid          bool
+	Fs              bool
+	FsLoadCallbacks []string `mapstructure:"fs_load_callbacks" yaml:"fs_load_callbacks"`
 }
 
 func (a *ManyConfigCommon) Validate() (err error) {
@@ -132,9 +139,11 @@ func (a *ManyConfigCommon) Config() (c *Config, err error) {
 	c = NewConfig()
 	c.Package = a.Pkg
 	c.FileSystem = a.Fs
+	c.FileSystemLoadCallbacks = a.FsLoadCallbacks
 	c.NoAutoLoad = a.NoAutoLoad
 	c.NoCompress = a.NoCompress
 	c.NoMetadata = a.NoMetadata
+	c.NoMemCopy = a.NoMemCopy
 	c.Mode = a.Mode
 	c.ModTime = a.ModTime
 	c.Prefix = a.Prefix
@@ -142,6 +151,18 @@ func (a *ManyConfigCommon) Config() (c *Config, err error) {
 
 	if a.Output != "" {
 		c.Output = a.Output
+	}
+
+	if len(a.FsLoadCallbacks) > 0 {
+		var cwd, _ = os.Getwd()
+		gph := path_helpers.PkgFromPath(cwd)
+
+		for i, cb := range a.FsLoadCallbacks {
+			if cb[0] == '.' {
+				cb = path.Join(gph, cb[1:])
+				c.FileSystemLoadCallbacks[i] = cb
+			}
+		}
 	}
 
 	if c.IgnoreGlob, err = a.IgnoreGlob.Items(); err != nil {
@@ -262,25 +283,36 @@ func (c *ManyConfig) InputsRelTo(baseDir string) {
 }
 
 func (c *ManyConfig) Validate() (err error) {
-	var hasOutlinedEmbeded bool
-	for i, o := range c.Outlined {
-		if o.Program {
+	var (
+		hasOutlinedEmbeded bool
+		embedded           []ManyConfigEmbedded
+		outlined           []ManyConfigOutlined
+	)
+	for i, cfg := range c.Outlined {
+		if cfg.Disabled {
+			continue
+		}
+		if cfg.Program {
 			if hasOutlinedEmbeded {
 				return fmt.Errorf("multiples outlined with embeded enabled")
 			}
 			hasOutlinedEmbeded = true
 		}
-		if err = o.Validate(); err != nil {
+		if err = cfg.Validate(); err != nil {
 			return fmt.Errorf("Outlined #d validate failed: %v", i, err)
 		}
-		c.Outlined[i] = o
+		outlined = append(outlined, cfg)
 	}
-	for i, e := range c.Embedded {
-		if err = e.Validate(); err != nil {
+	for i, cfg := range c.Embedded {
+		if cfg.Disabled {
+			continue
+		}
+		if err = cfg.Validate(); err != nil {
 			return fmt.Errorf("Embeded #d validate failed: %v", i, err)
 		}
-		c.Embedded[i] = e
+		embedded = append(embedded, cfg)
 	}
+	c.Outlined, c.Embedded = outlined, embedded
 	return nil
 }
 

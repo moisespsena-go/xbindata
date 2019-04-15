@@ -1,13 +1,10 @@
 package xbcommon
 
 import (
+	"path"
 	"path/filepath"
-	"strings"
 )
 
-func FilePath(dir, name string, args ...string) string {
-	canonicalName := strings.Replace(name, "\\", "/", -1)
-	parts := append([]string{dir}, strings.Split(canonicalName, "/")...)
-	parts = append(parts, args...)
-	return filepath.Join(parts...)
+func FilePath(pth ...string) string {
+	return filepath.FromSlash(path.Join(pth...))
 }

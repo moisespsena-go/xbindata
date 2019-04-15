@@ -7,11 +7,10 @@ package xbindata
 import (
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"time"
 
-	"github.com/go-errors/errors"
+	"github.com/moisespsena-go/xbindata/digest"
 
 	"github.com/djherbis/times"
 )
@@ -87,32 +86,14 @@ func (a *Asset) SourceCode(c *Config, start int64) (code string, err error) {
 		a.Name, info, readerFunc, *digest), nil
 }
 
-func (a *Asset) Digest() (digest *[sha256.Size]byte, err error) {
+func (a *Asset) Digest() (dig *[sha256.Size]byte, err error) {
 	if a.digest != nil {
 		return a.digest, nil
 	}
-	var fi os.FileInfo
-	if fi, err = a.Info(); err != nil {
-		return nil, err
-	}
 
-	f, err := os.Open(a.Path)
-	if err != nil {
-		return nil, err
+	if dig, err = digest.Digest(a.Path); err != nil {
+		return
 	}
-
-	defer f.Close()
-
-	h := sha256.New()
-	var n int64
-	if n, err = io.Copy(h, f); err != nil {
-		return nil, err
-	}
-	if n != fi.Size() {
-		return nil, errors.New("Writed size is not eq to file size.")
-	}
-	var d [sha256.Size]byte
-	copy(d[:], h.Sum(nil))
-	a.digest = &d
-	return a.digest, nil
+	a.digest = dig
+	return
 }

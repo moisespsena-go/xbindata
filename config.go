@@ -210,6 +210,8 @@ type Config struct {
 	NoStore bool
 
 	OulinedSkipApi bool
+
+	FileSystemLoadCallbacks []string
 }
 
 // NewConfig returns a default configuration struct.

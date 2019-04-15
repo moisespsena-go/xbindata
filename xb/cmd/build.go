@@ -160,7 +160,8 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+		cfgFile = viper.ConfigFileUsed()
+		fmt.Println("Using config file:", cfgFile)
 	} else if !os.IsNotExist(err) {
 		panic(fmt.Errorf("load config `%v` failed: %v", viper.ConfigFileUsed(), err))
 	}

@@ -165,11 +165,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:36ad2b6aa57c55b2a3e9bf5d3784fe0bf57c4978ac6e112bcb71f4b13d4807ec"
+  digest = "1:4f81684a98dd82ad913484d2d7dc47f1b35a5b51e8651721ce0584312a7e61d6"
   name = "github.com/moisespsena-go/path-helpers"
   packages = ["."]
   pruneopts = "UT"
-  revision = "315fb89e9670866204839ccf8ae86edb49f5ebb6"
+  revision = "993d518d4d1dd0215c9dd9c30ca95ff9d4dba248"
 
 [[projects]]
   branch = "master"
@@ -194,6 +194,14 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "4aff0affc141e521e1a9e6716dbefccabdcff4ca"
+
+[[projects]]
+  branch = "master"
+  digest = "1:5dcf2c2177374948f6e1d7abb57705213c080b25ed3aee55e5fd5be6ca4e0624"
+  name = "github.com/moisespsena-go/assetfs"
+  packages = ["assetfsapi"]
+  pruneopts = "UT"
+  revision = "f6ca5e6f828c1affbb9b1e00169be33e9033b4d1"
 
 [[projects]]
   branch = "master"
@@ -338,6 +346,7 @@
     "github.com/moisespsena-go/os-common",
     "github.com/moisespsena-go/path-helpers",
     "github.com/moisespsena-go/rpool",
+    "github.com/moisespsena-go/assetfs/assetfsapi",
     "github.com/op/go-logging",
     "github.com/phayes/permbits",
     "github.com/pkg/errors",

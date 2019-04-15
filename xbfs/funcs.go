@@ -1,10 +1,9 @@
 package xbfs
 
 import (
-	"path"
-	"path/filepath"
-
+	"context"
 	"github.com/moisespsena-go/assetfs/assetfsapi"
+	"path"
 
 	"github.com/moisespsena-go/os-common"
 
@@ -33,25 +32,25 @@ func globInfo(fs *FileSystem, pattern assetfsapi.GlobPattern, cb func(info asset
 	return _globInfo(root, pattern, cb)
 }
 
-func asset(fs *FileSystem, pth string) ([]byte, error) {
+func asset(fs *FileSystem, ctx context.Context, name string) ([]byte, error) {
 	if fs.root != nil {
-		pth = filepath.Join(fs.path, pth)
+		name = path.Join(fs.path, name)
 	}
-	if asset, ok := fs.assets.Get(pth); !ok {
-		return nil, oscommon.ErrNotFound(pth)
+	if asset, ok := fs.assets.GetC(ctx, name); !ok {
+		return nil, oscommon.ErrNotFound(name)
 	} else {
 		return asset.Data()
 	}
 }
 
-func assetInfo(fs *FileSystem, pth string) (assetfsapi.FileInfo, error) {
+func assetInfo(fs *FileSystem, ctx context.Context, name string) (assetfsapi.FileInfo, error) {
 	if fs.root != nil {
-		pth = filepath.Join(fs.path, pth)
+		name = path.Join(fs.path, name)
 	}
-	if asset, ok := fs.assets.Get(pth); ok {
-		return NewFileInfo(asset, pth), nil
+	if asset, ok := fs.assets.GetC(ctx, name); ok {
+		return NewFileInfo(asset, name), nil
 	}
-	return nil, oscommon.ErrNotFound(pth)
+	return nil, oscommon.ErrNotFound(name)
 }
 
 func readDir(fs *FileSystem, dir string, cb assetfsapi.CbWalkInfoFunc, skipDir bool) (err error) {

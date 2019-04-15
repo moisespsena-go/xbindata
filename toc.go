@@ -136,18 +136,18 @@ func writeTOC(c *Config, buf *bytes.Buffer, toc []Asset) error {
 		start += toc[i].Size
 	}
 
-	writeTOCFooter(buf)
+	writeTOCFooter(c, buf)
 	return nil
 }
 
 // writeTOCHeader writes the table of contents file header.
 func writeTOCHeader(buf *bytes.Buffer) {
 	buf.WriteString(`
-// Embed is a table, holding each asset generator, mapped to its name.
-var Embed *bc.Assets
+// Assets is a table, holding each asset generator, mapped to its name.
+var Assets *bc.Assets
 
 func LoadDefault() {
-	Embed = bc.NewAssets(
+	Assets = bc.NewAssets(
 `)
 }
 
@@ -158,11 +158,16 @@ func writeTOCAsset(c *Config, start int64, w io.Writer, asset *Asset) (err error
 }
 
 // writeTOCFooter writes the table of contents file footer.
-func writeTOCFooter(buf *bytes.Buffer) {
-	buf.WriteString(`
+func writeTOCFooter(c *Config, buf *bytes.Buffer) {
+	data := `
 	)
-
-	DefaultFS = fs.NewFileSystem(Embed)
-}
-`)
+`
+	if c.FileSystem {
+		data += `
+	DefaultFS = xbfs.NewFileSystem(Assets)
+`
+	}
+	data += `}
+`
+	buf.WriteString(data)
 }

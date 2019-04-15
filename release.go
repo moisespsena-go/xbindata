@@ -12,10 +12,15 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"strconv"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
+
+type fsLoadCallbacksSlice []struct {
+	pkg, pkgName string
+	fun          string
+}
 
 // writeRelease writes the release code file.
 func writeRelease(w io.Writer, c *Config, toc []Asset) error {
@@ -41,37 +46,74 @@ func writeRelease(w io.Writer, c *Config, toc []Asset) error {
 // writeReleaseHeader writes output file headers.
 // This targets release builds.
 func writeReleaseHeader(w io.Writer, c *Config, toc []Asset) error {
-	var err error
+	var (
+		err             error
+		imports         []string
+		fsLoadCallbacks fsLoadCallbacksSlice
+	)
+
+	if c.FileSystem && len(c.FileSystemLoadCallbacks) > 0 {
+		sort.Strings(c.FileSystemLoadCallbacks)
+
+		for i, cb := range c.FileSystemLoadCallbacks {
+			if pos := strings.LastIndexByte(cb, '.'); pos < 1 {
+				return fmt.Errorf("invalid filesystem load callback %q", cb)
+			} else {
+				var (
+					name = fmt.Sprintf("cb%02d", i)
+					pkg  = cb[0:pos]
+				)
+				fsLoadCallbacks = append(fsLoadCallbacks, struct {
+					pkg, pkgName string
+					fun          string
+				}{pkg, name, cb[pos+1:]})
+
+				imports = append(imports, name+` "`+pkg+`"`)
+			}
+		}
+	}
+
 	if c.Outlined {
-		err = header_outlined(w, c, toc)
+		err = header_outlined(w, c, toc, imports...)
 	} else {
 		if c.NoCompress {
 			if c.NoMemCopy {
-				err = header_uncompressed_nomemcopy(w, c)
+				err = header_uncompressed_nomemcopy(w, c, imports...)
 			} else {
-				err = header_uncompressed_memcopy(w, c)
+				err = header_uncompressed_memcopy(w, c, imports...)
 			}
 		} else {
 			if c.NoMemCopy {
-				err = header_compressed_nomemcopy(w, c)
+				err = header_compressed_nomemcopy(w, c, imports...)
 			} else {
-				err = header_compressed_memcopy(w, c)
+				err = header_compressed_memcopy(w, c, imports...)
 			}
 		}
 
-		if err == nil {
-			_, err = w.Write([]byte(`var (
-    loaded        bool
-    mu            sync.Mutex
-)
-
-`))
+		if err == nil && c.Hybrid {
+			_, err = w.Write([]byte("var pkg = path_helpers.GetCalledDir()\n\n"))
 		}
 	}
+
+	if err == nil {
+		data := `var (
+    loaded        bool
+    mu            sync.Mutex
+`
+		if c.FileSystem {
+			data += `	fs fsapi.Interface
+`
+		}
+		data += `
+)
+`
+		_, err = w.Write([]byte(data))
+	}
+
 	if err != nil {
 		return err
 	}
-	return header_release_common(w, c)
+	return header_release_common(w, c, fsLoadCallbacks)
 }
 
 // writeReleaseAsset write a release entry for the given asset.
@@ -162,19 +204,21 @@ func sanitizeChunks(buf *bytes.Buffer, chunks [][]byte) {
 	buf.WriteString("`")
 }
 
-func header_compressed_nomemcopy(w io.Writer, c *Config) (err error) {
-	var imports = []string{
+func header_compressed_nomemcopy(w io.Writer, c *Config, imports ...string) (err error) {
+	imports = append(imports,
 		"compress/gzip",
-		"crypto/sha256",
 		"fmt",
 		"os",
 		"strings",
 		"time",
 		"sync",
-	}
+	)
 
-	if c.FileSystem {
-		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	if c.Hybrid {
+		imports = append(imports,
+			"github.com/moisespsena-go/path-helpers",
+			"github.com/moisespsena-go/assetfs",
+		)
 	}
 
 	if err = write_imports(w, c, imports...); err != nil {
@@ -193,18 +237,21 @@ func bindataReader(data, name string) (iocommon.ReadSeekCloser, error) {
 	return
 }
 
-func header_compressed_memcopy(w io.Writer, c *Config) (err error) {
-	var imports = []string{
+func header_compressed_memcopy(w io.Writer, c *Config, imports ...string) (err error) {
+	imports = append(imports,
 		"bytes",
 		"compress/gzip",
 		"fmt",
 		"os",
 		"time",
 		"sync",
-	}
+	)
 
-	if c.FileSystem {
-		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	if c.Hybrid {
+		imports = append(imports,
+			"github.com/moisespsena-go/path-helpers",
+			"github.com/moisespsena-go/assetfs",
+		)
 	}
 
 	if err = write_imports(w, c, imports...); err != nil {
@@ -224,18 +271,20 @@ func bindataReader(data []byte, name string) (iocommon.ReadSeekCloser, error) {
 	return
 }
 
-func header_uncompressed_nomemcopy(w io.Writer, c *Config) (err error) {
-	var imports = []string{
-		"crypto/sha256",
+func header_uncompressed_nomemcopy(w io.Writer, c *Config, imports ...string) (err error) {
+	imports = append(imports,
 		"os",
 		"reflect",
 		"time",
 		"unsafe",
 		"sync",
-	}
+	)
 
-	if c.FileSystem {
-		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	if c.Hybrid {
+		imports = append(imports,
+			"github.com/moisespsena-go/path-helpers",
+			"github.com/moisespsena-go/assetfs",
+		)
 	}
 
 	if err = write_imports(w, c, imports...); err != nil {
@@ -258,38 +307,35 @@ func bindataReader(data *string, name string) (iocommon.ReadSeekCloser, error) {
 	return err
 }
 
-func header_uncompressed_memcopy(w io.Writer, c *Config) (err error) {
-	var imports = []string{
-		"crypto/sha256",
-		"fmt",
-		"io/ioutil",
+func header_uncompressed_memcopy(w io.Writer, c *Config, imports ...string) (err error) {
+	imports = append(imports,
 		"os",
-		"path/filepath",
-		"strings",
 		"time",
 		"sync",
-	}
+	)
 
-	if c.FileSystem {
-		imports = append(imports, "github.com/moisespsena-go/assetfs")
+	if c.Hybrid {
+		imports = append(imports,
+			"github.com/moisespsena-go/path-helpers",
+			"github.com/moisespsena-go/assetfs",
+		)
 	}
 
 	return write_imports(w, c, imports...)
 }
 
-func header_outlined(w io.Writer, c *Config, toc []Asset) (err error) {
-	var imports = []string{
+func header_outlined(w io.Writer, c *Config, toc []Asset, imports ...string) (err error) {
+	imports = append(imports,
 		"os",
+		"path",
 		`br "github.com/moisespsena-go/xbindata/xbreader"`,
 		`"github.com/moisespsena-go/xbindata/outlined"`,
 		"github.com/moisespsena-go/path-helpers",
 		`fsapi "github.com/moisespsena-go/assetfs/assetfsapi"`,
 		"sync",
-		"regexp",
-		"strings",
 		"path/filepath",
 		"errors",
-	}
+	)
 
 	if c.Hybrid {
 		imports = append(imports, "github.com/moisespsena-go/assetfs")
@@ -310,12 +356,12 @@ func header_outlined(w io.Writer, c *Config, toc []Asset) (err error) {
 		outlineds = append(outlineds, "os.Args[0]")
 	} else if c.Output != "" {
 		if !c.NoCompress {
-			outlineds = append(outlineds, strconv.Quote(c.Output+".gz"))
+			outlineds = append(outlineds, `path.Join("_assets", pkg + ".xb.gz")`)
 		}
-		outlineds = append(outlineds, strconv.Quote(c.Output))
+		outlineds = append(outlineds, `path.Join("_assets", pkg + ".xb")`)
 	}
 
-	outlined := strings.Join(outlineds, ", ")
+	outlined := "\n\t\t\t" + strings.Join(outlineds, ",\n\t\t\t") + ",\n\t\t"
 
 	preInit := c.EmbedPreInitSource
 	if preInit != "" {
@@ -323,21 +369,16 @@ func header_outlined(w io.Writer, c *Config, toc []Asset) (err error) {
 	}
 
 	data := `
-const Size = ` + fmt.Sprint(size) + `
-
 var (
 	_outlined     *outlined.Outlined
 	outlinedPath  string
 	outlinedPaths []string
-    loaded        bool
     ended         bool
-    mu            sync.Mutex
 
 	StartPos int64
 	Assets   bc.Assets
 
 	pkg           = path_helpers.GetCalledDir()
-	envName       = "XBINDATA_ARCHIVE__" + strings.ToUpper(regexp.MustCompile("[\\W]+").ReplaceAllString(pkg, "_"))
 	OpenOutlined   = br.Open
 	OutlinedReaderFactory = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 		return func() (reader iocommon.ReadSeekCloser, err error) {
@@ -345,10 +386,6 @@ var (
 		}
 	}
 )
-
-func EnvName() string {
-	return envName
-}
 
 func OutlinedPath() string {
 	return outlinedPath
@@ -368,9 +405,11 @@ func Outlined() (archiv *outlined.Outlined, err error) {
 
 func LoadDefault() {` + preInit + `
 	if outlinedPath == "" {
-		pths := append(strings.Split(os.Getenv(envName), string(filepath.ListSeparator)), ` + outlined + `)
+		pths := []string{` + outlined + `}
+
 		for _, pth := range pths {
     	    if pth == "" { continue }
+			pth = bc.FilePath(pth)
 `
 
 	if c.OutlinedProgram {
@@ -419,11 +458,30 @@ func LoadDefault() {` + preInit + `
 	return
 }
 
-func header_release_common(w io.Writer, c *Config) (err error) {
+func header_release_common(w io.Writer, c *Config, fsLoadCallbacks fsLoadCallbacksSlice) (err error) {
 	var data string
 	if c.FileSystem {
+		data += `var fsLoadCallbacks []func(fs fsapi.Interface)
+
+func OnFsLoad(cb ...func(fs fsapi.Interface)) {
+	fsLoadCallbacks = append(fsLoadCallbacks, cb...)
+}
+
+func callFsLoadCallbacks() {
+`
+		if len(fsLoadCallbacks) > 0 {
+			for _, cb := range fsLoadCallbacks {
+				data += "\t" + cb.pkgName + "." + cb.fun + "(fs)\n"
+			}
+			data += ""
+		}
+		data += `	for _, f := range fsLoadCallbacks {
+		f(fs)
+	}
+}
+`
 		if c.Hybrid {
-			data += "func IsLocal() bool {\n"
+			data += "\nfunc IsLocal() bool {\n"
 			data += fmt.Sprintf("\tif _, err := os.Stat(%q); err == nil {\n\t\t", c.Input[0].Path)
 			data += "return true\n\t"
 			data += "}\n\t"
@@ -432,19 +490,15 @@ func header_release_common(w io.Writer, c *Config) (err error) {
 		data += `
 func FS() fsapi.Interface {
 	Load()
+	return fs
+}
 `
-		if c.Hybrid {
-			data += `	if IsLocal() { return LocalFS }
-	return DefaultFS`
-		} else {
-			data += "	return DefaultFS"
-		}
-		data += "\n}\n"
+
 		data += `
 var DefaultFS fsapi.Interface`
 
 		if c.Outlined {
-			data += `= fs.NewFileSystem(&Assets)
+			data += `= xbfs.NewFileSystem(&Assets)
 `
 		} else {
 			data += "\n"
@@ -461,7 +515,9 @@ func LoadLocal() {
 				data += fmt.Sprintf("\t\t%q,\n", input.Path)
 			}
 			data += `	}
-	localDir := filepath.Join("` + c.OutlinedLocalOutputDir + `", filepath.FromSlash(pkg))
+`
+			if c.Outlined {
+				data += `	localDir := filepath.Join("` + c.OutlinedLocalOutputDir + `", filepath.FromSlash(pkg))
 	if _, err := os.Stat(localDir); err == nil {
 		for i, pth := range inputs {
 			inputs[i] = filepath.Join(localDir, pth)
@@ -469,12 +525,15 @@ func LoadLocal() {
 	} else if !os.IsNotExist(err) {
 		panic(err)
 	}
-	for _, pth := range inputs {
+`
+			}
+			data += `	for _, pth := range inputs {
 		if err := LocalFS.RegisterPath(pth); err != nil {
 			panic(err)
 		}
 	}
 }
+
 `
 		}
 	}
@@ -482,22 +541,35 @@ func LoadLocal() {
 	data += `func Load() {
     if loaded { return }
 	mu.Lock()
-	defer mu.Unlock()
-	if loaded { return }	
+	if loaded { mu.Unlock(); return }
+`
+	if c.FileSystem {
+		data += `	defer callFsLoadCallbacks()
+`
+	}
+
+	data += `	defer mu.Unlock()
+	defer func() { loaded = true }()
 `
 	if c.Hybrid {
 		data += `	if IsLocal() {
 		LoadLocal()
-	} else {
-		LoadDefault()
+`
+		if c.FileSystem {
+			data += `		fs = LocalFS
+`
+		}
+		data += `		return
 	}
 `
-	} else {
-		data += "	LoadDefault()\n"
 	}
-
-	data += `	loaded = true
-}
+	data += `	LoadDefault()
+`
+	if c.FileSystem {
+		data += `	fs = DefaultFS
+`
+	}
+	data += `}
 `
 
 	if !c.NoAutoLoad {

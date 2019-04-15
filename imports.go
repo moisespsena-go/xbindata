@@ -17,21 +17,34 @@ func write_imports(w io.Writer, c *Config, imports ...string) (err error) {
 	if c.FileSystem {
 		imports = append(
 			imports,
-			`fs "github.com/moisespsena-go/xbindata/xbfs"`,
+			`"github.com/moisespsena-go/xbindata/xbfs"`,
 			`fsapi "github.com/moisespsena-go/assetfs/assetfsapi"`,
 		)
 	}
 
 	var (
-		importsMap = map[string]bool{}
-		newImports []string
+		importsMap           = map[string]bool{}
+		newImports, excludes []string
 	)
 
 	for _, imp := range imports {
 		if _, ok := importsMap[imp]; !ok {
-			newImports = append(newImports, imp)
-			importsMap[imp] = true
+			if imp[0] == '-' {
+				excludes = append(excludes, imp[0:])
+			} else {
+				importsMap[imp] = true
+			}
 		}
+	}
+
+	for _, imp := range excludes {
+		if _, ok := importsMap[imp]; ok {
+			delete(importsMap, imp)
+		}
+	}
+
+	for imp, _ := range importsMap {
+		newImports = append(newImports, imp)
 	}
 
 	imports = newImports

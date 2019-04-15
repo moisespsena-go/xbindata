@@ -1,24 +1,25 @@
 package xbfs
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/moisespsena-go/assetfs/local"
+
 	"github.com/moisespsena-go/assetfs/assetfsapi"
 
-	"github.com/moisespsena-go/xbindata/xbcommon"
 	"github.com/moisespsena-go/assetfs"
-
-	"github.com/moisespsena-go/file-utils"
-	"github.com/moisespsena-go/assetfs/repository"
-	rapi "github.com/moisespsena-go/assetfs/repository/api"
+	"github.com/moisespsena-go/xbindata/xbcommon"
 )
 
-var ERR_BINDATA_FILE = errors.New("Bindata file.")
-var ERR_BINDATA_DIR = errors.New("Bindata dir.")
+var (
+	ERR_BINDATA_FILE = errors.New("Bindata file.")
+	ERR_BINDATA_DIR  = errors.New("Bindata dir.")
+)
 
 type FileSystem struct {
 	assetfsapi.AssetGetterInterface
@@ -32,6 +33,8 @@ type FileSystem struct {
 	callbacks   []assetfsapi.PathRegisterCallback
 	HttpHandler http.Handler
 	notExists   bool
+
+	local.LocalSourcesAttribute
 }
 
 func NewFileSystem(assets *xbcommon.Assets) (fs *FileSystem) {
@@ -42,11 +45,11 @@ func NewFileSystem(assets *xbcommon.Assets) (fs *FileSystem) {
 
 func (fs *FileSystem) init() {
 	fs.AssetGetterInterface = &assetfs.AssetGetter{
-		AssetFunc: func(path string) ([]byte, error) {
-			return asset(fs, path)
+		AssetFunc: func(ctx context.Context, path string) ([]byte, error) {
+			return asset(fs, ctx, path)
 		},
-		AssetInfoFunc: func(path string) (assetfsapi.FileInfo, error) {
-			return assetInfo(fs, path)
+		AssetInfoFunc: func(ctx context.Context, path string) (assetfsapi.FileInfo, error) {
+			return assetInfo(fs, ctx, path)
 		},
 	}
 	fs.TraversableInterface = &assetfs.Traversable{
@@ -156,12 +159,6 @@ func (fs *FileSystem) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fs.HttpHandler = assetfs.HTTPStaticHandler(fs)
 	}
 	fs.HttpHandler.ServeHTTP(w, r)
-}
-
-func (fs *FileSystem) NewRepository(pkg string) rapi.Interface {
-	repo := repository.NewRepository(pkg)
-	repo.AddSourcePath(&fileutils.Dir{})
-	return repo
 }
 
 func (fs *FileSystem) RegisterPlugin(plugins ...assetfsapi.Plugin) {

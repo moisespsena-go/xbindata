@@ -4,35 +4,30 @@ package embed_executable
 
 import (
 	"errors"
+	"github.com/moisespsena-go/assetfs"
 	fsapi "github.com/moisespsena-go/assetfs/assetfsapi"
 	"github.com/moisespsena-go/io-common"
 	"github.com/moisespsena-go/path-helpers"
 	"github.com/moisespsena-go/xbindata/outlined"
+	cb00 "github.com/moisespsena-go/xbindata/samples/mix/callbacks"
 	bc "github.com/moisespsena-go/xbindata/xbcommon"
-	fs "github.com/moisespsena-go/xbindata/xbfs"
+	"github.com/moisespsena-go/xbindata/xbfs"
 	br "github.com/moisespsena-go/xbindata/xbreader"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"sync"
 )
-
-const Size = 4
 
 var (
 	_outlined     *outlined.Outlined
 	outlinedPath  string
 	outlinedPaths []string
-	loaded        bool
 	ended         bool
-	mu            sync.Mutex
 
 	StartPos int64
 	Assets   bc.Assets
 
 	pkg                   = path_helpers.GetCalledDir()
-	envName               = "XBINDATA_ARCHIVE__" + strings.ToUpper(regexp.MustCompile("[\\W]+").ReplaceAllString(pkg, "_"))
 	OpenOutlined          = br.Open
 	OutlinedReaderFactory = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 		return func() (reader iocommon.ReadSeekCloser, err error) {
@@ -40,10 +35,6 @@ var (
 		}
 	}
 )
-
-func EnvName() string {
-	return envName
-}
 
 func OutlinedPath() string {
 	return outlinedPath
@@ -63,11 +54,15 @@ func Outlined() (archiv *outlined.Outlined, err error) {
 
 func LoadDefault() {
 	if outlinedPath == "" {
-		pths := append(strings.Split(os.Getenv(envName), string(filepath.ListSeparator)), os.Args[0])
+		pths := []string{
+			os.Args[0],
+		}
+
 		for _, pth := range pths {
 			if pth == "" {
 				continue
 			}
+			pth = bc.FilePath(pth)
 
 			if _, err := os.Stat(pth); err == nil {
 				if pth == os.Args[0] {
@@ -98,24 +93,79 @@ func LoadDefault() {
 	loaded = true
 }
 
-func FS() fsapi.Interface {
-	Load()
-	return DefaultFS
+var (
+	loaded bool
+	mu     sync.Mutex
+	fs     fsapi.Interface
+)
+var fsLoadCallbacks []func(fs fsapi.Interface)
+
+func OnFsLoad(cb ...func(fs fsapi.Interface)) {
+	fsLoadCallbacks = append(fsLoadCallbacks, cb...)
 }
 
-var DefaultFS fsapi.Interface = fs.NewFileSystem(&Assets)
+func callFsLoadCallbacks() {
+	cb00.FSLoaded(fs)
+	for _, f := range fsLoadCallbacks {
+		f(fs)
+	}
+}
+
+func IsLocal() bool {
+	if _, err := os.Stat("assets/inputs/a"); err == nil {
+		return true
+	}
+	return false
+}
+
+func FS() fsapi.Interface {
+	Load()
+	return fs
+}
+
+var DefaultFS fsapi.Interface = xbfs.NewFileSystem(&Assets)
+var LocalFS = assetfs.NewAssetFileSystem()
+
+func LoadLocal() {
+	var inputs = []string{
+		"assets/inputs/a",
+		"assets/inputs/b",
+		"assets/inputs/c",
+	}
+	localDir := filepath.Join("_assets", filepath.FromSlash(pkg))
+	if _, err := os.Stat(localDir); err == nil {
+		for i, pth := range inputs {
+			inputs[i] = filepath.Join(localDir, pth)
+		}
+	} else if !os.IsNotExist(err) {
+		panic(err)
+	}
+	for _, pth := range inputs {
+		if err := LocalFS.RegisterPath(pth); err != nil {
+			panic(err)
+		}
+	}
+}
 
 func Load() {
 	if loaded {
 		return
 	}
 	mu.Lock()
-	defer mu.Unlock()
 	if loaded {
+		mu.Unlock()
+		return
+	}
+	defer callFsLoadCallbacks()
+	defer mu.Unlock()
+	defer func() { loaded = true }()
+	if IsLocal() {
+		LoadLocal()
+		fs = LocalFS
 		return
 	}
 	LoadDefault()
-	loaded = true
+	fs = DefaultFS
 }
 
 func init() { Load() }

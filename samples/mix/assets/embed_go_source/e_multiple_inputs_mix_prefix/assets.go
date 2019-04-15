@@ -13,8 +13,9 @@ import (
 	"github.com/moisespsena-go/assetfs"
 	fsapi "github.com/moisespsena-go/assetfs/assetfsapi"
 	"github.com/moisespsena-go/io-common"
+	"github.com/moisespsena-go/path-helpers"
 	bc "github.com/moisespsena-go/xbindata/xbcommon"
-	fs "github.com/moisespsena-go/xbindata/xbfs"
+	"github.com/moisespsena-go/xbindata/xbfs"
 	"os"
 	"sync"
 	"time"
@@ -28,10 +29,24 @@ func bindataReader(data []byte, name string) (iocommon.ReadSeekCloser, error) {
 	return iocommon.NoSeeker(gz), nil
 }
 
+var pkg = path_helpers.GetCalledDir()
+
 var (
 	loaded bool
 	mu     sync.Mutex
+	fs     fsapi.Interface
 )
+var fsLoadCallbacks []func(fs fsapi.Interface)
+
+func OnFsLoad(cb ...func(fs fsapi.Interface)) {
+	fsLoadCallbacks = append(fsLoadCallbacks, cb...)
+}
+
+func callFsLoadCallbacks() {
+	for _, f := range fsLoadCallbacks {
+		f(fs)
+	}
+}
 
 func IsLocal() bool {
 	if _, err := os.Stat("assets/inputs/a"); err == nil {
@@ -42,10 +57,7 @@ func IsLocal() bool {
 
 func FS() fsapi.Interface {
 	Load()
-	if IsLocal() {
-		return LocalFS
-	}
-	return DefaultFS
+	return fs
 }
 
 var DefaultFS fsapi.Interface
@@ -56,35 +68,32 @@ func LoadLocal() {
 		"assets/inputs/a",
 		"assets/inputs/b",
 	}
-	localDir := filepath.Join("_assets", filepath.FromSlash(pkg))
-	if _, err := os.Stat(localDir); err == nil {
-		for i, pth := range inputs {
-			inputs[i] = filepath.Join(localDir, pth)
-		}
-	} else if !os.IsNotExist(err) {
-		panic(err)
-	}
 	for _, pth := range inputs {
 		if err := LocalFS.RegisterPath(pth); err != nil {
 			panic(err)
 		}
 	}
 }
+
 func Load() {
 	if loaded {
 		return
 	}
 	mu.Lock()
-	defer mu.Unlock()
 	if loaded {
+		mu.Unlock()
 		return
 	}
+	defer callFsLoadCallbacks()
+	defer mu.Unlock()
+	defer func() { loaded = true }()
 	if IsLocal() {
 		LoadLocal()
-	} else {
-		LoadDefault()
+		fs = LocalFS
+		return
 	}
-	loaded = true
+	LoadDefault()
+	fs = DefaultFS
 }
 
 func init() { Load() }
@@ -111,15 +120,15 @@ func subDTxtReader() (iocommon.ReadSeekCloser, error) {
 
 var subDTxt = bc.NewFile(bc.NewFileInfo("sub/d.txt", 1, os.FileMode(436), time.Unix(1554918964, 0), time.Unix(1554918964, 0)), subDTxtReader, &[32]uint8{0x18, 0xac, 0x3e, 0x73, 0x43, 0xf0, 0x16, 0x89, 0xc, 0x51, 0xe, 0x93, 0xf9, 0x35, 0x26, 0x11, 0x69, 0xd9, 0xe3, 0xf5, 0x65, 0x43, 0x64, 0x29, 0x83, 0xf, 0xaf, 0x9, 0x34, 0xf4, 0xf8, 0xe4})
 
-// Embed is a table, holding each asset generator, mapped to its name.
-var Embed *bc.Assets
+// Assets is a table, holding each asset generator, mapped to its name.
+var Assets *bc.Assets
 
 func LoadDefault() {
-	Embed = bc.NewAssets(
+	Assets = bc.NewAssets(
 		aTxt,
 		bTxt,
 		subDTxt,
 	)
 
-	DefaultFS = fs.NewFileSystem(Embed)
+	DefaultFS = xbfs.NewFileSystem(Assets)
 }

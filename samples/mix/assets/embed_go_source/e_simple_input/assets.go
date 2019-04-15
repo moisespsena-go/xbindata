@@ -11,9 +11,11 @@ import (
 	"github.com/moisespsena-go/assetfs"
 	fsapi "github.com/moisespsena-go/assetfs/assetfsapi"
 	"github.com/moisespsena-go/io-common"
+	"github.com/moisespsena-go/path-helpers"
 	bc "github.com/moisespsena-go/xbindata/xbcommon"
-	fs "github.com/moisespsena-go/xbindata/xbfs"
+	"github.com/moisespsena-go/xbindata/xbfs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -26,10 +28,24 @@ func bindataReader(data []byte, name string) (iocommon.ReadSeekCloser, error) {
 	return iocommon.NoSeeker(gz), nil
 }
 
+var pkg = path_helpers.GetCalledDir()
+
 var (
 	loaded bool
 	mu     sync.Mutex
+	fs     fsapi.Interface
 )
+var fsLoadCallbacks []func(fs fsapi.Interface)
+
+func OnFsLoad(cb ...func(fs fsapi.Interface)) {
+	fsLoadCallbacks = append(fsLoadCallbacks, cb...)
+}
+
+func callFsLoadCallbacks() {
+	for _, f := range fsLoadCallbacks {
+		f(fs)
+	}
+}
 
 func IsLocal() bool {
 	if _, err := os.Stat("assets/inputs/a"); err == nil {
@@ -40,10 +56,7 @@ func IsLocal() bool {
 
 func FS() fsapi.Interface {
 	Load()
-	if IsLocal() {
-		return LocalFS
-	}
-	return DefaultFS
+	return fs
 }
 
 var DefaultFS fsapi.Interface
@@ -53,7 +66,7 @@ func LoadLocal() {
 	var inputs = []string{
 		"assets/inputs/a",
 	}
-	localDir := filepath.Join("_assets", filepath.FromSlash(pkg))
+	localDir := filepath.Join("", filepath.FromSlash(pkg))
 	if _, err := os.Stat(localDir); err == nil {
 		for i, pth := range inputs {
 			inputs[i] = filepath.Join(localDir, pth)
@@ -67,21 +80,26 @@ func LoadLocal() {
 		}
 	}
 }
+
 func Load() {
 	if loaded {
 		return
 	}
 	mu.Lock()
-	defer mu.Unlock()
 	if loaded {
+		mu.Unlock()
 		return
 	}
+	defer callFsLoadCallbacks()
+	defer mu.Unlock()
+	defer func() { loaded = true }()
 	if IsLocal() {
 		LoadLocal()
-	} else {
-		LoadDefault()
+		fs = LocalFS
+		return
 	}
-	loaded = true
+	LoadDefault()
+	fs = DefaultFS
 }
 
 func init() { Load() }
@@ -102,5 +120,5 @@ func LoadDefault() {
 		aTxt,
 	)
 
-	DefaultFS = fs.NewFileSystem(Embed)
+	DefaultFS = xbfs.NewFileSystem(Embed)
 }
