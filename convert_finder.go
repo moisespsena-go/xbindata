@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/moisespsena-go/xbindata/walker"
 
@@ -17,11 +18,12 @@ import (
 // They are added to the given map as keys. Values will be safe function names
 // for each file, which will be used when generating the output code.
 type Finder struct {
-	toc          *tocRegister
-	ignore       []*regexp.Regexp
-	ignoreGlob   []glob.Glob
-	knownFuncs   map[string]int
-	visitedPaths map[string]bool
+	toc           *tocRegister
+	ignore        []*regexp.Regexp
+	ignoreGlob    []glob.Glob
+	knownFuncs    map[string]int
+	visitedPaths  map[string]bool
+	knownFuncsMux sync.RWMutex
 }
 
 // find now
@@ -36,6 +38,8 @@ func (f Finder) find(input *InputConfig, prefix string) (err error) {
 	if err != nil {
 		return err
 	}
+
+	var mu sync.Mutex
 
 	return input.Walk(&f.visitedPaths, func(info walker.FileInfo) (err error) {
 		if info.IsDir() {
@@ -72,13 +76,17 @@ func (f Finder) find(input *InputConfig, prefix string) (err error) {
 			return fmt.Errorf("Invalid file: %v", asset.Path)
 		}
 
-		asset.Func = safeFunctionName(asset.Name, f.knownFuncs)
-		asset.Path, err = filepath.Abs(info.Path)
-		if err != nil {
+		if asset.Path, err = filepath.Abs(info.Path); err != nil {
 			return err
 		}
+
 		asset.info = info
 		asset.Size = info.Size()
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		asset.Func = safeFunctionName(asset.Name, f.knownFuncs, &f.knownFuncsMux)
 		f.toc.Append(asset)
 		return nil
 	})

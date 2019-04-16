@@ -16,12 +16,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/moisespsena-go/xbindata/outlined"
 	"github.com/moisespsena-go/xbindata/xbcommon"
-
-	"github.com/gobwas/glob"
 
 	"github.com/moisespsena-go/bits2str"
 
@@ -71,11 +70,11 @@ func Translate(c *Config) error {
 		// Locate all the assets.
 		for _, input := range c.Input {
 			finder := Finder{
-				tocr,
-				append(c.Ignore, input.Ignore...),
-				append(c.IgnoreGlob, input.IgnoreGlob...),
-				knownFuncs,
-				visitedPaths,
+				toc:          tocr,
+				ignore:       append(c.Ignore, input.Ignore...),
+				ignoreGlob:   append(c.IgnoreGlob, input.IgnoreGlob...),
+				knownFuncs:   knownFuncs,
+				visitedPaths: visitedPaths,
 			}
 
 			prefix := c.Prefix
@@ -297,127 +296,13 @@ func Translate(c *Config) error {
 	return err
 }
 
-// Implement sort.Interface for []os.FileInfo based on Name()
-type byName []os.FileInfo
-
-func (v byName) Len() int           { return len(v) }
-func (v byName) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
-func (v byName) Less(i, j int) bool { return v[i].Name() < v[j].Name() }
-
-// findFiles recursively finds all the file paths in the given directory tree.
-// They are added to the given map as keys. Values will be safe function names
-// for each file, which will be used when generating the output code.
-func findFiles(dir, prefix string, recursive bool, toc *[]Asset, ignore []*regexp.Regexp, ignoreGlob []glob.Glob, knownFuncs map[string]int, visitedPaths map[string]bool) error {
-	dirpath := dir
-	if len(prefix) > 0 {
-		dirpath, _ = filepath.Abs(dirpath)
-		prefix, _ = filepath.Abs(prefix)
-		prefix = filepath.ToSlash(prefix)
-	}
-
-	fi, err := os.Stat(dirpath)
-	if err != nil {
-		return err
-	}
-
-	var list []os.FileInfo
-
-	if !fi.IsDir() {
-		dirpath = filepath.Dir(dirpath)
-		list = []os.FileInfo{fi}
-	} else {
-		visitedPaths[dirpath] = true
-		fd, err := os.Open(dirpath)
-		if err != nil {
-			return err
-		}
-
-		defer fd.Close()
-
-		list, err = fd.Readdir(0)
-		if err != nil {
-			return err
-		}
-
-		// Sort to make output stable between invocations
-		sort.Sort(byName(list))
-	}
-
-	for _, file := range list {
-		var asset Asset
-		asset.Path = filepath.Join(dirpath, file.Name())
-		asset.Name = filepath.ToSlash(asset.Path)
-
-		ignoring := false
-		for _, re := range ignore {
-			if re.MatchString(asset.Path) {
-				ignoring = true
-				break
-			}
-		}
-		if ignoring {
-			continue
-		}
-
-		if file.IsDir() {
-			if recursive {
-				recursivePath := filepath.Join(dir, file.Name())
-				visitedPaths[asset.Path] = true
-				findFiles(recursivePath, prefix, recursive, toc, ignore, ignoreGlob, knownFuncs, visitedPaths)
-			}
-			continue
-		} else if file.Mode()&os.ModeSymlink == os.ModeSymlink {
-			var linkPath string
-			if linkPath, err = os.Readlink(asset.Path); err != nil {
-				return err
-			}
-			if !filepath.IsAbs(linkPath) {
-				if linkPath, err = filepath.Abs(dirpath + "/" + linkPath); err != nil {
-					return err
-				}
-			}
-			if _, ok := visitedPaths[linkPath]; !ok {
-				visitedPaths[linkPath] = true
-				findFiles(asset.Path, prefix, recursive, toc, ignore, ignoreGlob, knownFuncs, visitedPaths)
-			}
-			continue
-		}
-
-		if strings.HasPrefix(asset.Name, prefix) {
-			asset.Name = asset.Name[len(prefix):]
-		} else {
-			asset.Name = filepath.Join(dir, file.Name())
-		}
-
-		// If we have a leading slash, get rid of it.
-		if len(asset.Name) > 0 && asset.Name[0] == '/' {
-			asset.Name = asset.Name[1:]
-		}
-
-		// This shouldn't happen.
-		if len(asset.Name) == 0 {
-			return fmt.Errorf("Invalid file: %v", asset.Path)
-		}
-
-		asset.Func = safeFunctionName(asset.Name, knownFuncs)
-		asset.Path, err = filepath.Abs(asset.Path)
-		if err != nil {
-			return err
-		}
-		asset.Size = file.Size()
-		*toc = append(*toc, asset)
-	}
-
-	return nil
-}
-
 var regFuncName = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // safeFunctionName converts the given name into a name
 // which qualifies as a valid function identifier. It
 // also compares against a known list of functions to
 // prevent conflict based on name translation.
-func safeFunctionName(name string, knownFuncs map[string]int) string {
+func safeFunctionName(name string, knownFuncs map[string]int, mux *sync.RWMutex) string {
 	var inBytes, outBytes []byte
 	var toUpper bool
 
@@ -442,7 +327,13 @@ func safeFunctionName(name string, knownFuncs map[string]int) string {
 		name = "_" + name
 	}
 
-	if num, ok := knownFuncs[name]; ok {
+	mux.RLock()
+	num, ok := knownFuncs[name]
+	mux.RUnlock()
+
+	mux.Lock()
+	defer mux.Unlock()
+	if ok {
 		knownFuncs[name] = num + 1
 		name = fmt.Sprintf("%s%d", name, num)
 	} else {

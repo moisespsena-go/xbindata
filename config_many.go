@@ -2,11 +2,12 @@ package xbindata
 
 import (
 	"fmt"
-	"github.com/apex/log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/apex/log"
 
 	"gopkg.in/yaml.v2"
 
@@ -54,7 +55,14 @@ type ManyConfigInput struct {
 
 func (i *ManyConfigInput) GetPkg() string {
 	if i.Pkg == "" {
-		i.Pkg = path_helpers.StripGoPath(i.Path)
+		pth := i.Path
+		if !filepath.IsAbs(pth) {
+			var err error
+			if pth, err = filepath.Abs(pth); err != nil {
+				panic(fmt.Errorf("abs path of %q failed: %v", pth, err))
+			}
+		}
+		i.Pkg = path_helpers.StripGoPath(pth)
 	}
 	return i.Pkg
 }
@@ -104,7 +112,7 @@ func (i *ManyConfigInput) Config() (configs []*InputConfig, err error) {
 		}()
 
 		if err != nil {
-			return
+			return nil, fmt.Errorf("decode %q failed: %v", xbinputFile, err)
 		}
 
 		for _, input := range xbinput.Sources {
@@ -163,6 +171,24 @@ func (i *ManyConfigInput) Config() (configs []*InputConfig, err error) {
 	return
 }
 
+type ManyConfigCommonDefaultInput struct {
+	Prefix     string
+	NamePrefix string `mapstructure:"name_prefix" yaml:"name_prefix"`
+	Recursive  bool
+}
+
+func (i *ManyConfigCommonDefaultInput) UnmarshalMap(value interface{}) (err error) {
+	return mapstructure.Decode(value, i)
+}
+
+type ManyConfigCommonDefault struct {
+	Input ManyConfigCommonDefaultInput
+}
+
+func (d *ManyConfigCommonDefault) UnmarshalMap(value interface{}) (err error) {
+	return mapstructure.Decode(value, d)
+}
+
 type ManyConfigCommon struct {
 	Disabled        bool
 	NoAutoLoad      bool `mapstructure:"no_auto_load" yaml:"no_auto_load"`
@@ -180,6 +206,7 @@ type ManyConfigCommon struct {
 	Hybrid          bool
 	Fs              bool
 	FsLoadCallbacks []string `mapstructure:"fs_load_callbacks" yaml:"fs_load_callbacks"`
+	Default         ManyConfigCommonDefault
 }
 
 func (a *ManyConfigCommon) Validate() (err error) {
@@ -246,6 +273,19 @@ func (a *ManyConfigCommon) Config() (c *Config, err error) {
 	}
 	if c.Ignore, err = a.Ignore.Items(); err != nil {
 		return nil, err
+	}
+
+	for i, input := range a.Inputs {
+		if a.Default.Input.Prefix != "" && input.Prefix == "" {
+			input.Prefix = a.Default.Input.Prefix
+		}
+		if a.Default.Input.NamePrefix != "" && input.NamePrefix == "" {
+			input.NamePrefix = a.Default.Input.NamePrefix
+		}
+		if a.Default.Input.Recursive {
+			input.Recursive = true
+		}
+		a.Inputs[i] = input
 	}
 
 	if c.Input, err = a.Inputs.Items(); err != nil {
