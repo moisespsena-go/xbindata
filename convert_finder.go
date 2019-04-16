@@ -3,10 +3,12 @@ package xbindata
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
+
+	"github.com/moisespsena-go/xbindata/walker"
 
 	"github.com/gobwas/glob"
 )
@@ -15,7 +17,6 @@ import (
 // They are added to the given map as keys. Values will be safe function names
 // for each file, which will be used when generating the output code.
 type Finder struct {
-	recursive    bool
 	toc          *tocRegister
 	ignore       []*regexp.Regexp
 	ignoreGlob   []glob.Glob
@@ -24,101 +25,46 @@ type Finder struct {
 }
 
 // find now
-func (f Finder) find(dir, prefix string) (err error) {
-	dirpath := dir
+func (f Finder) find(input *InputConfig, prefix string) (err error) {
+	var dirpath string
 	if len(prefix) > 0 {
-		dirpath, _ = filepath.Abs(dirpath)
-		prefix, _ = filepath.Abs(prefix)
+		dirpath, _ = filepath.Abs(input.Path)
 		prefix = filepath.ToSlash(prefix)
 	}
 
-	fi, err := os.Stat(dirpath)
+	_, err = os.Stat(dirpath)
 	if err != nil {
 		return err
 	}
 
-	var list []os.FileInfo
-
-	if !fi.IsDir() {
-		dirpath = filepath.Dir(dirpath)
-		list = []os.FileInfo{fi}
-	} else {
-		f.visitedPaths[dirpath] = true
-		fd, err := os.Open(dirpath)
-		if err != nil {
-			return err
+	return input.Walk(&f.visitedPaths, func(info walker.FileInfo) (err error) {
+		if info.IsDir() {
+			return nil
 		}
-
-		defer fd.Close()
-
-		list, err = fd.Readdir(0)
-		if err != nil {
-			return err
-		}
-
-		// Sort to make output stable between invocations
-		sort.Sort(byName(list))
-	}
-
-	for _, file := range list {
-		var asset Asset
-		asset.Path = filepath.Join(dirpath, file.Name())
-		asset.Name = filepath.ToSlash(asset.Path)
-
-		ignoring := false
 		for _, re := range f.ignore {
-			if re.MatchString(asset.Path) {
-				ignoring = true
-				break
+			if re.MatchString(info.Path) {
+				return nil
 			}
 		}
 		for _, ignore := range f.ignoreGlob {
-			if ignore.Match(asset.Path) {
-				ignoring = true
-				break
+			if ignore.Match(info.Path) {
+				return nil
 			}
 		}
-		if ignoring {
-			continue
-		}
-
-		if file.IsDir() {
-			if f.recursive {
-				recursivePath := filepath.Join(dir, file.Name())
-				f.visitedPaths[asset.Path] = true
-				if err = f.find(recursivePath, prefix); err != nil {
-					return
-				}
-			}
-			continue
-		} else if file.Mode()&os.ModeSymlink == os.ModeSymlink {
-			var linkPath string
-			if linkPath, err = os.Readlink(asset.Path); err != nil {
-				return err
-			}
-			if !filepath.IsAbs(linkPath) {
-				if linkPath, err = filepath.Abs(dirpath + "/" + linkPath); err != nil {
-					return err
-				}
-			}
-			if _, ok := f.visitedPaths[linkPath]; !ok {
-				f.visitedPaths[linkPath] = true
-				if err = f.find(asset.Path, prefix); err != nil {
-					return
-				}
-			}
-			continue
-		}
+		var asset Asset
+		asset.Name = filepath.ToSlash(info.Path)
 
 		if strings.HasPrefix(asset.Name, prefix) {
 			asset.Name = asset.Name[len(prefix):]
-		} else {
-			asset.Name = filepath.Join(dir, file.Name())
 		}
 
 		// If we have a leading slash, get rid of it.
 		if len(asset.Name) > 0 && asset.Name[0] == '/' {
 			asset.Name = asset.Name[1:]
+		}
+
+		if len(info.NamePrefix) > 0 {
+			asset.Name = path.Join(append(info.NamePrefix, asset.Name)...)
 		}
 
 		// This shouldn't happen.
@@ -127,13 +73,13 @@ func (f Finder) find(dir, prefix string) (err error) {
 		}
 
 		asset.Func = safeFunctionName(asset.Name, f.knownFuncs)
-		asset.Path, err = filepath.Abs(asset.Path)
+		asset.Path, err = filepath.Abs(info.Path)
 		if err != nil {
 			return err
 		}
-		asset.Size = file.Size()
+		asset.info = info
+		asset.Size = info.Size()
 		f.toc.Append(asset)
-	}
-
-	return nil
+		return nil
+	})
 }

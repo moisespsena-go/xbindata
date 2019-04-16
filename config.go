@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/moisespsena-go/xbindata/walker"
+
 	"github.com/gobwas/glob"
 )
 
@@ -42,6 +44,34 @@ type InputConfig struct {
 	IgnoreGlob []glob.Glob
 
 	Prefix string
+
+	NamePrefix string
+
+	WalkFunc func(visited *map[string]bool, recursive bool, cb func(info walker.FileInfo) error) error
+}
+
+func (i InputConfig) Walk(visited *map[string]bool, cb walker.WalkCallback) (err error) {
+	if i.WalkFunc != nil {
+		return i.WalkFunc(visited, i.Recursive, i.prepareCb(cb))
+	}
+
+	return i.DefaultWalk(visited, i.Recursive, cb)
+}
+
+func (i InputConfig) DefaultWalk(visited *map[string]bool, recursive bool, cb walker.WalkCallback) (err error) {
+	var pth = i.Path
+	w := walker.Walker{Recursive: recursive, VisitedPaths: visited}
+	return w.Walk(pth, i.prepareCb(cb))
+}
+
+func (i InputConfig) prepareCb(cb walker.WalkCallback) walker.WalkCallback {
+	if i.NamePrefix != "" {
+		old := cb
+		cb = func(info walker.FileInfo) error {
+			return old(info.SetNamePrefix(i.NamePrefix))
+		}
+	}
+	return cb
 }
 
 // Config defines a set of options for the asset conversion.

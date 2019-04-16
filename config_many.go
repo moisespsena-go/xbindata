@@ -2,16 +2,17 @@ package xbindata
 
 import (
 	"fmt"
+	"github.com/apex/log"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
+
+	"gopkg.in/yaml.v2"
 
 	"github.com/moisespsena-go/path-helpers"
+	"github.com/moisespsena-go/xbindata/ignore"
 
 	"github.com/mitchellh/mapstructure"
-
-	"github.com/gobwas/glob"
 )
 
 const (
@@ -20,40 +21,21 @@ const (
 	DefaultDataDir  = "assets"
 )
 
-type IgnoreSlice []string
+type (
+	IgnoreSlice     = ignore.IgnoreSlice
+	IgnoreGlobSlice = ignore.IgnoreGlobSlice
 
-func (s IgnoreSlice) Items() (r []*regexp.Regexp, err error) {
-	for j, pattern := range s {
-		if regexPattern, err := regexp.Compile(pattern); err != nil {
-			return nil, fmt.Errorf("invalid regex pattern #%d (%q): %v", j, pattern, err)
-		} else {
-			r = append(r, regexPattern)
-		}
-	}
-	return
-}
-
-type IgnoreGlobSlice []string
-
-func (s IgnoreGlobSlice) Items() (r []glob.Glob, err error) {
-	for j, pattern := range s {
-		if globPattern, err := glob.Compile(pattern); err != nil {
-			return nil, fmt.Errorf("invalid glob pattern #%d (%q): %v", j, pattern, err)
-		} else {
-			r = append(r, globPattern)
-		}
-	}
-	return
-}
-
-type ManyConfigInputSlice []ManyConfigInput
+	ManyConfigInputSlice []ManyConfigInput
+)
 
 func (s ManyConfigInputSlice) Items() (r []InputConfig, err error) {
 	for j, input := range s {
 		if c, err := input.Config(); err != nil {
 			return nil, fmt.Errorf("get config from input #%d (%q) failed: %v", j, input, err)
 		} else {
-			r = append(r, *c)
+			for _, c := range c {
+				r = append(r, *c)
+			}
 		}
 	}
 	return
@@ -62,28 +44,97 @@ func (s ManyConfigInputSlice) Items() (r []InputConfig, err error) {
 type ManyConfigInput struct {
 	Path       string
 	Prefix     string
+	NamePrefix string `mapstructure:"name_prefix" yaml:"name_prefix"`
 	Recursive  bool
 	Ignore     IgnoreSlice
 	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
 }
 
-func (i ManyConfigInput) Config() (c *InputConfig, err error) {
-	c = &InputConfig{
-		Path:      i.Path,
-		Recursive: i.Recursive,
-		Prefix:    i.Prefix,
+func (i ManyConfigInput) Config() (configs []*InputConfig, err error) {
+	if _, err = os.Stat(i.Path); err != nil {
+		if os.IsNotExist(err) {
+			log.Warnf("input %q does not exists", i.Path)
+			return nil, nil
+		}
+		return
 	}
 
-	if i.Prefix == "_" {
-		c.Prefix = i.Path
+	xbinputFile := filepath.Join(i.Path, ".xbinputs.yml")
+	if _, err = os.Stat(xbinputFile); err == nil {
+		if i.Prefix == "_" {
+			i.Prefix = i.Path
+		}
+
+		var (
+			xbinput struct{ Sources []ManyConfigInput }
+			f       *os.File
+		)
+		if f, err = os.Open(xbinputFile); err != nil {
+			return
+		}
+
+		func() {
+			defer f.Close()
+			err = yaml.NewDecoder(f).Decode(&xbinput)
+		}()
+
+		if err != nil {
+			return
+		}
+
+		for _, input := range xbinput.Sources {
+			input.NamePrefix = path.Join(i.NamePrefix, input.NamePrefix)
+
+			if input.Prefix != "" {
+				if input.Prefix == "_" {
+					input.Prefix = input.Path
+				}
+
+				input.Prefix = filepath.Join(i.Prefix, input.Prefix)
+			}
+
+			input.Path = filepath.Join(i.Path, input.Path)
+
+			if !i.Recursive && input.Recursive {
+				input.Recursive = false
+			}
+
+			input.IgnoreGlob = append(i.IgnoreGlob, input.IgnoreGlob...)
+			input.Ignore = append(i.Ignore, input.Ignore...)
+
+			var cfgs []*InputConfig
+			if cfgs, err = input.Config(); err != nil {
+				return
+			}
+
+			configs = append(configs, cfgs...)
+		}
+	} else {
+		c := &InputConfig{
+			Path:       i.Path,
+			Recursive:  i.Recursive,
+			Prefix:     i.Prefix,
+			NamePrefix: i.NamePrefix,
+		}
+
+		if i.Prefix == "_" {
+			c.Prefix = i.Path
+		}
+
+		if c.IgnoreGlob, err = i.IgnoreGlob.Items(); err != nil {
+			return nil, err
+		}
+		if c.Ignore, err = i.Ignore.Items(); err != nil {
+			return nil, err
+		}
+
+		if _, err := os.Stat(filepath.Join(i.Path, ".xbwalk", "main.go")); err == nil {
+			c.WalkFunc = i.Walked
+		}
+
+		configs = append(configs, c)
 	}
 
-	if c.IgnoreGlob, err = i.IgnoreGlob.Items(); err != nil {
-		return nil, err
-	}
-	if c.Ignore, err = i.Ignore.Items(); err != nil {
-		return nil, err
-	}
 	return
 }
 

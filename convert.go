@@ -71,7 +71,6 @@ func Translate(c *Config) error {
 		// Locate all the assets.
 		for _, input := range c.Input {
 			finder := Finder{
-				input.Recursive,
 				tocr,
 				append(c.Ignore, input.Ignore...),
 				append(c.IgnoreGlob, input.IgnoreGlob...),
@@ -84,16 +83,16 @@ func Translate(c *Config) error {
 				prefix = input.Prefix
 			}
 
-			if err := finder.find(input.Path, prefix); err != nil {
+			if err := finder.find(&input, prefix); err != nil {
 				return err
 			}
 		}
 
-		sort.Slice(tocr.toc, func(i, j int) bool {
-			return tocr.toc[i].Name < tocr.toc[j].Name
-		})
-
 		toc = tocr.toc
+
+		sort.Slice(toc, func(i, j int) bool {
+			return toc[i].Name < toc[j].Name
+		})
 	}
 
 	// Create output file.
