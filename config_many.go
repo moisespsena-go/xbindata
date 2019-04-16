@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 
@@ -48,15 +49,39 @@ type ManyConfigInput struct {
 	Recursive  bool
 	Ignore     IgnoreSlice
 	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
+	Pkg        string
 }
 
-func (i ManyConfigInput) Config() (configs []*InputConfig, err error) {
+func (i *ManyConfigInput) GetPkg() string {
+	if i.Pkg == "" {
+		i.Pkg = path_helpers.StripGoPath(i.Path)
+	}
+	return i.Pkg
+}
+
+func (i *ManyConfigInput) Config() (configs []*InputConfig, err error) {
+	if i.Path == "" {
+		log.Warnf("input path not set", i.Path)
+		return
+	}
+
+	if strings.HasPrefix(i.Path, "go:") {
+		i.Pkg = i.Path[3:]
+		_, i.Path = path_helpers.ResolveGoSrcPath(i.Pkg)
+	}
+
 	if _, err = os.Stat(i.Path); err != nil {
 		if os.IsNotExist(err) {
 			log.Warnf("input %q does not exists", i.Path)
 			return nil, nil
 		}
 		return
+	}
+
+	if i.NamePrefix == "_" {
+		i.NamePrefix = i.GetPkg()
+	} else if strings.Contains(i.NamePrefix, "$PKG") {
+		i.NamePrefix = path.Clean(strings.Replace(i.NamePrefix, "$PKG", i.GetPkg(), 1))
 	}
 
 	xbinputFile := filepath.Join(i.Path, ".xbinputs.yml")
