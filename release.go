@@ -89,10 +89,6 @@ func writeReleaseHeader(w io.Writer, c *Config, toc []Asset) error {
 				err = header_compressed_memcopy(w, c, imports...)
 			}
 		}
-
-		if err == nil && c.Hybrid {
-			_, err = w.Write([]byte("var pkg = path_helpers.GetCalledDir()\n\n"))
-		}
 	}
 
 	if err == nil {
@@ -214,13 +210,6 @@ func header_compressed_nomemcopy(w io.Writer, c *Config, imports ...string) (err
 		"sync",
 	)
 
-	if c.Hybrid {
-		imports = append(imports,
-			"github.com/moisespsena-go/path-helpers",
-			"github.com/moisespsena-go/assetfs",
-		)
-	}
-
 	if err = write_imports(w, c, imports...); err != nil {
 		return
 	}
@@ -247,13 +236,6 @@ func header_compressed_memcopy(w io.Writer, c *Config, imports ...string) (err e
 		"sync",
 	)
 
-	if c.Hybrid {
-		imports = append(imports,
-			"github.com/moisespsena-go/path-helpers",
-			"github.com/moisespsena-go/assetfs",
-		)
-	}
-
 	if err = write_imports(w, c, imports...); err != nil {
 		return
 	}
@@ -279,13 +261,6 @@ func header_uncompressed_nomemcopy(w io.Writer, c *Config, imports ...string) (e
 		"unsafe",
 		"sync",
 	)
-
-	if c.Hybrid {
-		imports = append(imports,
-			"github.com/moisespsena-go/path-helpers",
-			"github.com/moisespsena-go/assetfs",
-		)
-	}
 
 	if err = write_imports(w, c, imports...); err != nil {
 		return
@@ -314,13 +289,6 @@ func header_uncompressed_memcopy(w io.Writer, c *Config, imports ...string) (err
 		"sync",
 	)
 
-	if c.Hybrid {
-		imports = append(imports,
-			"github.com/moisespsena-go/path-helpers",
-			"github.com/moisespsena-go/assetfs",
-		)
-	}
-
 	return write_imports(w, c, imports...)
 }
 
@@ -334,13 +302,6 @@ func header_outlined(w io.Writer, c *Config, toc []Asset, imports ...string) (er
 		"sync",
 		"errors",
 	)
-
-	if c.Hybrid {
-		imports = append(imports,
-			"path/filepath",
-			"github.com/moisespsena-go/assetfs",
-		)
-	}
 
 	if err = write_imports(w, c, imports...); err != nil {
 		return
@@ -404,7 +365,7 @@ func Outlined() (archiv *outlined.Outlined, err error) {
 	return _outlined, nil
 }
 
-func LoadDefault() {` + preInit + `
+func load() {` + preInit + `
 	if outlinedPath == "" {
 		pths := []string{` + outlined + `}
 
@@ -450,7 +411,7 @@ func LoadDefault() {` + preInit + `
 	data += `
 	}
 
-	loaded = true
+    fs = xbfs.NewFileSystem(&Assets)
 }
 
 `
@@ -481,62 +442,12 @@ func callFsLoadCallbacks() {
 	}
 }
 `
-		if c.Hybrid {
-			data += "\nfunc IsLocal() bool {\n"
-			data += fmt.Sprintf("\tif _, err := os.Stat(%q); err == nil {\n\t\t", c.Input[0].Path)
-			data += "return true\n\t"
-			data += "}\n\t"
-			data += "return false\n}\n\n"
-		}
 		data += `
 func FS() fsapi.Interface {
 	Load()
 	return fs
 }
 `
-
-		data += `
-var DefaultFS fsapi.Interface`
-
-		if c.Outlined {
-			data += `= xbfs.NewFileSystem(&Assets)
-`
-		} else {
-			data += "\n"
-		}
-
-		if c.Hybrid {
-			data += `var LocalFS = assetfs.NewAssetFileSystem()
-
-func LoadLocal() {
-	var inputs = []string{
-`
-			// Locate all the assets.
-			for _, input := range c.Input {
-				data += fmt.Sprintf("\t\t%q,\n", input.Path)
-			}
-			data += `	}
-`
-			if c.Outlined {
-				data += `	localDir := filepath.Join("` + c.OutlinedLocalOutputDir + `", filepath.FromSlash(pkg))
-	if _, err := os.Stat(localDir); err == nil {
-		for i, pth := range inputs {
-			inputs[i] = filepath.Join(localDir, pth)
-		}
-	} else if !os.IsNotExist(err) {
-		panic(err)
-	}
-`
-			}
-			data += `	for _, pth := range inputs {
-		if err := LocalFS.RegisterPath(pth); err != nil {
-			panic(err)
-		}
-	}
-}
-
-`
-		}
 	}
 
 	data += `func Load() {
@@ -552,24 +463,8 @@ func LoadLocal() {
 	data += `	defer mu.Unlock()
 	defer func() { loaded = true }()
 `
-	if c.Hybrid {
-		data += `	if IsLocal() {
-		LoadLocal()
+	data += `	load()
 `
-		if c.FileSystem {
-			data += `		fs = LocalFS
-`
-		}
-		data += `		return
-	}
-`
-	}
-	data += `	LoadDefault()
-`
-	if c.FileSystem {
-		data += `	fs = DefaultFS
-`
-	}
 	data += `}
 `
 

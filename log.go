@@ -15,6 +15,11 @@ func logTocAndInputs(dir, base string, c *Config, toc []Asset) (err error) {
 	if wd, err = os.Getwd(); err != nil {
 		return
 	}
+	if !filepath.IsAbs(dir) {
+		if dir, err = filepath.Abs(filepath.Join(wd, dir)); err != nil {
+			return
+		}
+	}
 
 	var ignores = []string{
 		base + "toc_names.yml",
@@ -45,25 +50,28 @@ func logTocAndInputs(dir, base string, c *Config, toc []Asset) (err error) {
 			return
 		}
 
-		tmpl := "- { pth: %q, recursive: %v, name_prefix: %q, prefix: %q }\n"
+		tmpl := "- { path: %q, recursive: %v, ns: %q, prefix: %q }\n"
 
 		for _, input := range c.Input {
 			relative := input.Path
-			if filepath.IsAbs(relative) {
-				relative, err = filepath.Rel(wd, relative)
-				if err != nil {
-					return
-				}
+			if !filepath.IsAbs(relative) {
+				relative = filepath.Join(wd, relative)
+			}
+			relative, err = filepath.Rel(dir, relative)
+			if err != nil {
+				return
 			}
 
 			prefix := input.Prefix
-			if filepath.IsAbs(prefix) {
-				prefix, err = filepath.Rel(wd, prefix)
-				if err != nil {
-					return
-				}
+			if !filepath.IsAbs(prefix) {
+				prefix = filepath.Join(wd, prefix)
 			}
-			if _, err = fmt.Fprintf(f, tmpl, relative, input.Recursive, input.NamePrefix, prefix); err != nil {
+			prefix, err = filepath.Rel(dir, prefix)
+			if err != nil {
+				return
+			}
+
+			if _, err = fmt.Fprintf(f, tmpl, relative, input.Recursive, input.NameSpace, prefix); err != nil {
 				return
 			}
 		}
@@ -99,7 +107,7 @@ func logTocAndInputs(dir, base string, c *Config, toc []Asset) (err error) {
 		}
 
 		for _, asset := range toc {
-			relative, err := filepath.Rel(wd, asset.Path)
+			relative, err := filepath.Rel(dir, asset.Path)
 			if err != nil {
 				return
 			}

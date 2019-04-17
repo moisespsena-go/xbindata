@@ -136,9 +136,13 @@ func Translate(c *Config) error {
 		}
 	}
 
+	if c.Hybrid {
+		c.Tags = append(c.Tags, "!"+tagLocalFs)
+	}
+
 	// Write build tags, if applicable.
 	if len(c.Tags) > 0 {
-		if _, err := fmt.Fprintf(buf, "// +build %s\n\n", strings.Join(c.Tags, ",")); err != nil {
+		if _, err := fmt.Fprintf(buf, "\n// +build %s\n\n", strings.Join(c.Tags, "\n// +build ")); err != nil {
 			return err
 		}
 	}
@@ -150,7 +154,7 @@ func Translate(c *Config) error {
 	}
 
 	// Write assets.
-	if c.Debug || c.Dev {
+	if !c.Outlined && (c.Debug || c.Dev) {
 		if os.Getenv("GO_BINDATA_TEST") == "true" {
 			// If we don't do this, people running the tests on different
 			// machines get different git diffs.
@@ -164,6 +168,12 @@ func Translate(c *Config) error {
 	}
 	if err != nil {
 		return err
+	}
+
+	if c.Hybrid {
+		if err = localFs(c); err != nil {
+			return err
+		}
 	}
 
 	if c.Outlined {

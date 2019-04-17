@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:740f0e477ddda011071f5e076ac9d38a0f6cee3ad3a924ab2acdd45b74a3c05c"
+  name = "github.com/apex/log"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "941dea75d3ebfbdd905a5d8b7b232965c5e5c684"
+  version = "v1.1.0"
+
+[[projects]]
   digest = "1:b7b063b8125b7aeaf179aa4564ba60c896551d702f7c824ace98cc654fc813a0"
   name = "github.com/djherbis/times"
   packages = ["."]
@@ -103,7 +111,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b44d53c23020bcc3a9de9942e92039931c1ea92a8a319ab73dde160933b996ef"
+  digest = "1:ba2b26c747d7c38e96bb5f601c7a7052cd8a0b2763d374b35059f8b67e5572eb"
   name = "github.com/moisespsena-go/assetfs"
   packages = [
     ".",
@@ -111,7 +119,7 @@
     "local",
   ]
   pruneopts = "UT"
-  revision = "4eef90af121f38b228177482de6505c78898e203"
+  revision = "e7c9e99a64ab3c4a343a224ddd7ad1dfdc1be556"
 
 [[projects]]
   branch = "master"
@@ -163,11 +171,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4f81684a98dd82ad913484d2d7dc47f1b35a5b51e8651721ce0584312a7e61d6"
+  digest = "1:548fdd558f15f58efdd5be255ea8532e6149c3cd6518f436770495052f7c62f7"
   name = "github.com/moisespsena-go/path-helpers"
   packages = ["."]
   pruneopts = "UT"
-  revision = "993d518d4d1dd0215c9dd9c30ca95ff9d4dba248"
+  revision = "d85da131f3f5152dff99359f3d315bfbf13daf7b"
 
 [[projects]]
   branch = "master"
@@ -311,6 +319,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/apex/log",
     "github.com/djherbis/times",
     "github.com/dustin/go-humanize",
     "github.com/go-errors/errors",
@@ -332,6 +341,7 @@
     "github.com/pkg/errors",
     "github.com/spf13/cobra",
     "github.com/spf13/viper",
+    "gopkg.in/yaml.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

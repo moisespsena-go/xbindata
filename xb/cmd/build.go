@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -109,10 +110,12 @@ var (
 				cfg.Outlined, cfg.Embedded = outline, embedded
 			}
 
+			ctx := context.Background()
+
 			for i, cfg := range cfg.Outlined {
 				log.Println("==== cfg config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
 				var c *xbindata.Config
-				if c, err = cfg.Config(); err != nil {
+				if c, err = cfg.Config(ctx); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
 				}
 				if err = xbindata.Translate(c); err != nil {
@@ -123,7 +126,7 @@ var (
 			for i, cfg := range cfg.Embedded {
 				log.Println("==== embeded config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
 				var c *xbindata.Config
-				if c, err = cfg.Config(); err != nil {
+				if c, err = cfg.Config(ctx); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
 				}
 				if err = xbindata.Translate(c); err != nil {

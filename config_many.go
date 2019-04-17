@@ -1,11 +1,15 @@
 package xbindata
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/go-errors/errors"
 
 	"github.com/apex/log"
 
@@ -30,9 +34,9 @@ type (
 	ManyConfigInputSlice []ManyConfigInput
 )
 
-func (s ManyConfigInputSlice) Items() (r []InputConfig, err error) {
+func (s ManyConfigInputSlice) Items(ctx context.Context) (r []InputConfig, err error) {
 	for j, input := range s {
-		if c, err := input.Config(); err != nil {
+		if c, err := input.Config(ContextWithInputKey(ctx, "#"+strconv.Itoa(j))); err != nil {
 			return nil, fmt.Errorf("get config from input #%d (%q) failed: %v", j, input, err)
 		} else {
 			for _, c := range c {
@@ -46,11 +50,24 @@ func (s ManyConfigInputSlice) Items() (r []InputConfig, err error) {
 type ManyConfigInput struct {
 	Path       string
 	Prefix     string
-	NamePrefix string `mapstructure:"name_prefix" yaml:"name_prefix"`
+	Ns         string
+	NameSpace  string `mapstructure:"name_space" yaml:"name_space"`
 	Recursive  bool
 	Ignore     IgnoreSlice
 	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
 	Pkg        string
+}
+
+func (i *ManyConfigInput) UnmarshalMap(value interface{}) (err error) {
+	var ns struct{ Ns string }
+	if err = mapstructure.Decode(value, i); err == nil {
+		if i.NameSpace == "" {
+			if err = mapstructure.Decode(value, &ns); err == nil {
+				i.NameSpace = ns.Ns
+			}
+		}
+	}
+	return
 }
 
 func (i *ManyConfigInput) GetPkg() string {
@@ -67,15 +84,32 @@ func (i *ManyConfigInput) GetPkg() string {
 	return i.Pkg
 }
 
-func (i *ManyConfigInput) Config() (configs []*InputConfig, err error) {
+func (i *ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, err error) {
 	if i.Path == "" {
 		log.Warnf("input path not set", i.Path)
 		return
 	}
 
+	if i.Ns != "" {
+		i.NameSpace = i.Ns
+		i.Ns = ""
+	}
+
+	if key := InputKey(ctx, "[%s]:"); key != "" {
+		defer func() {
+			if err != nil {
+				err = errors.New(fmt.Sprint(key, err.Error()))
+			}
+		}()
+	}
+
 	if strings.HasPrefix(i.Path, "go:") {
 		i.Pkg = i.Path[3:]
 		_, i.Path = path_helpers.ResolveGoSrcPath(i.Pkg)
+	}
+
+	if i.Path, err = i.format(ctx, "path", i.Path); err != nil {
+		return
 	}
 
 	if _, err = os.Stat(i.Path); err != nil {
@@ -86,10 +120,18 @@ func (i *ManyConfigInput) Config() (configs []*InputConfig, err error) {
 		return
 	}
 
-	if i.NamePrefix == "_" {
-		i.NamePrefix = i.GetPkg()
-	} else if strings.Contains(i.NamePrefix, "$PKG") {
-		i.NamePrefix = path.Clean(strings.Replace(i.NamePrefix, "$PKG", i.GetPkg(), 1))
+	if i.NameSpace != "" {
+		if i.NameSpace == "_" {
+			i.NameSpace = i.GetPkg()
+		} else if strings.Contains(i.NameSpace, "$PKG") {
+			i.NameSpace = strings.Replace(i.NameSpace, "$PKG", i.GetPkg(), 1)
+		}
+
+		if i.NameSpace, err = i.format(ctx, "name_space", i.NameSpace); err != nil {
+			return
+		}
+
+		i.NameSpace = path.Clean(i.NameSpace)
 	}
 
 	xbinputFile := filepath.Join(i.Path, ".xbinputs.yml")
@@ -106,17 +148,25 @@ func (i *ManyConfigInput) Config() (configs []*InputConfig, err error) {
 			return
 		}
 
+		ctx := ContextWithInputKey(ctx, xbinputFile)
+
 		func() {
 			defer f.Close()
 			err = yaml.NewDecoder(f).Decode(&xbinput)
 		}()
 
 		if err != nil {
-			return nil, fmt.Errorf("decode %q failed: %v", xbinputFile, err)
+			return
 		}
 
 		for _, input := range xbinput.Sources {
-			input.NamePrefix = path.Join(i.NamePrefix, input.NamePrefix)
+			if input.Ns != "" {
+				input.NameSpace = input.Ns
+				input.Ns = ""
+			}
+			if input.NameSpace != "" && i.NameSpace != "" {
+				input.NameSpace = i.NameSpace + "/" + input.NameSpace
+			}
 
 			if input.Prefix != "" {
 				if input.Prefix == "_" {
@@ -136,49 +186,58 @@ func (i *ManyConfigInput) Config() (configs []*InputConfig, err error) {
 			input.Ignore = append(i.Ignore, input.Ignore...)
 
 			var cfgs []*InputConfig
-			if cfgs, err = input.Config(); err != nil {
+			if cfgs, err = input.Config(ctx); err != nil {
 				return
 			}
 
 			configs = append(configs, cfgs...)
 		}
-	} else {
-		c := &InputConfig{
-			Path:       i.Path,
-			Recursive:  i.Recursive,
-			Prefix:     i.Prefix,
-			NamePrefix: i.NamePrefix,
-		}
-
-		if i.Prefix == "_" {
-			c.Prefix = i.Path
-		}
-
-		if c.IgnoreGlob, err = i.IgnoreGlob.Items(); err != nil {
-			return nil, err
-		}
-		if c.Ignore, err = i.Ignore.Items(); err != nil {
-			return nil, err
-		}
-
-		if _, err := os.Stat(filepath.Join(i.Path, ".xbwalk", "main.go")); err == nil {
-			c.WalkFunc = i.Walked
-		}
-
-		configs = append(configs, c)
+		return
 	}
 
+	c := &InputConfig{
+		Path:      i.Path,
+		Recursive: i.Recursive,
+		Prefix:    i.Prefix,
+		NameSpace: i.NameSpace,
+	}
+
+	if i.Prefix == "_" {
+		c.Prefix = i.Path
+	}
+
+	if c.IgnoreGlob, err = i.IgnoreGlob.Items(); err != nil {
+		return nil, err
+	}
+	if c.Ignore, err = i.Ignore.Items(); err != nil {
+		return nil, err
+	}
+
+	walkedPath := filepath.Join(i.Path, ".xbwalk", "main.go")
+	if _, err := os.Stat(walkedPath); err == nil {
+		c.WalkFunc = i.Walked
+	}
+
+	configs = append(configs, c)
 	return
 }
 
 type ManyConfigCommonDefaultInput struct {
-	Prefix     string
-	NamePrefix string `mapstructure:"name_prefix" yaml:"name_prefix"`
-	Recursive  bool
+	Prefix    string
+	NameSpace string `mapstructure:"name_space" yaml:"name_space"`
+	Recursive bool
 }
 
 func (i *ManyConfigCommonDefaultInput) UnmarshalMap(value interface{}) (err error) {
-	return mapstructure.Decode(value, i)
+	var ns struct{ Ns string }
+	if err = mapstructure.Decode(value, i); err == nil {
+		if i.NameSpace == "" {
+			if err = mapstructure.Decode(value, &ns); err == nil {
+				i.NameSpace = ns.Ns
+			}
+		}
+	}
+	return
 }
 
 type ManyConfigCommonDefault struct {
@@ -238,7 +297,7 @@ func (a *ManyConfigCommon) Validate() (err error) {
 	return nil
 }
 
-func (a *ManyConfigCommon) Config() (c *Config, err error) {
+func (a *ManyConfigCommon) Config(ctx context.Context) (c *Config, err error) {
 	c = NewConfig()
 	c.Package = a.Pkg
 	c.FileSystem = a.Fs
@@ -279,8 +338,8 @@ func (a *ManyConfigCommon) Config() (c *Config, err error) {
 		if a.Default.Input.Prefix != "" && input.Prefix == "" {
 			input.Prefix = a.Default.Input.Prefix
 		}
-		if a.Default.Input.NamePrefix != "" && input.NamePrefix == "" {
-			input.NamePrefix = a.Default.Input.NamePrefix
+		if a.Default.Input.NameSpace != "" && input.NameSpace == "" {
+			input.NameSpace = a.Default.Input.NameSpace
 		}
 		if a.Default.Input.Recursive {
 			input.Recursive = true
@@ -288,7 +347,7 @@ func (a *ManyConfigCommon) Config() (c *Config, err error) {
 		a.Inputs[i] = input
 	}
 
-	if c.Input, err = a.Inputs.Items(); err != nil {
+	if c.Input, err = a.Inputs.Items(ctx); err != nil {
 		return nil, err
 	}
 
@@ -343,8 +402,8 @@ func (a *ManyConfigOutlined) Validate() (err error) {
 	return nil
 }
 
-func (a *ManyConfigOutlined) Config() (c *Config, err error) {
-	if c, err = a.ManyConfigCommon.Config(); err != nil {
+func (a *ManyConfigOutlined) Config(ctx context.Context) (c *Config, err error) {
+	if c, err = a.ManyConfigCommon.Config(ctx); err != nil {
 		return
 	}
 	c.Outlined = true
@@ -368,9 +427,9 @@ func (a *ManyConfigOutlined) UnmarshalMap(value interface{}) (err error) {
 	return
 }
 
-func (a *ManyConfigOutlined) Translate() (err error) {
+func (a *ManyConfigOutlined) Translate(ctx context.Context) (err error) {
 	var c *Config
-	if c, err = a.Config(); err != nil {
+	if c, err = a.Config(ctx); err != nil {
 		return
 	}
 	return Translate(c)

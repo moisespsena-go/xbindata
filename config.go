@@ -45,7 +45,7 @@ type InputConfig struct {
 
 	Prefix string
 
-	NamePrefix string
+	NameSpace string
 
 	WalkFunc func(visited *map[string]bool, recursive bool, cb func(info walker.FileInfo) error) error
 }
@@ -65,10 +65,10 @@ func (i InputConfig) DefaultWalk(visited *map[string]bool, recursive bool, cb wa
 }
 
 func (i InputConfig) prepareCb(cb walker.WalkCallback) walker.WalkCallback {
-	if i.NamePrefix != "" {
+	if i.NameSpace != "" {
 		old := cb
 		cb = func(info walker.FileInfo) error {
-			return old(info.SetNamePrefix(i.NamePrefix))
+			return old(info.SetNamePrefix(i.NameSpace))
 		}
 	}
 	return cb

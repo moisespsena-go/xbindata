@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"context"
 	"io"
 	"log"
 	"os"
@@ -153,7 +154,7 @@ Examples:
 		for _, cfg := range cfg.Outlined {
 			if cfg.Program {
 				var c *xbindata.Config
-				c, err = cfg.Config()
+				c, err = cfg.Config(context.Background())
 				if err != nil {
 					return err
 				}
