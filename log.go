@@ -3,7 +3,6 @@ package xbindata
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 
@@ -24,11 +23,6 @@ func logTocAndInputs(dir, base string, c *Config, toc []Asset) (err error) {
 	var ignores = []string{
 		base + "toc_names.yml",
 		base + "toc_paths.yml",
-		base + "inputs.yml",
-	}
-
-	if c.Outlined {
-		ignores = append(ignores, path.Join(filepath.ToSlash(dir), base)+"dev.go")
 	}
 
 	if err = gitIgnore(dir, ignores...); err != nil {

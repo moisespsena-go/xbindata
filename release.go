@@ -300,7 +300,7 @@ func header_outlined(w io.Writer, c *Config, toc []Asset, imports ...string) (er
 		"github.com/moisespsena-go/path-helpers",
 		`fsapi "github.com/moisespsena-go/assetfs/assetfsapi"`,
 		"sync",
-		"errors",
+		"strings",
 	)
 
 	if err = write_imports(w, c, imports...); err != nil {
@@ -332,16 +332,18 @@ func header_outlined(w io.Writer, c *Config, toc []Asset, imports ...string) (er
 
 	data := `
 var (
+	pkg          = path_helpers.GetCalledDir()
+    envName      = "XB_"+strings.NewReplacer("/", "_", ".", "", "-", "").Replace(strings.ToUpper(pkg))
+
 	_outlined     *outlined.Outlined
-	outlinedPath  string
 	outlinedPaths []string
-    ended         bool
+	outlinedPath  = os.Getenv(envName)
+    ended         = os.Getenv(envName+"_ENDED") == "true"
 
 	StartPos int64
 	Assets   bc.Assets
 
-	pkg           = path_helpers.GetCalledDir()
-	OpenOutlined   = br.Open
+	OpenOutlined = br.Open
 	OutlinedReaderFactory = func(start, size int64) func() (reader iocommon.ReadSeekCloser, err error) {
 		return func() (reader iocommon.ReadSeekCloser, err error) {
 			return OpenOutlined(outlinedPath, _outlined.StartPos + start, size)
@@ -367,27 +369,16 @@ func Outlined() (archiv *outlined.Outlined, err error) {
 
 func load() {` + preInit + `
 	if outlinedPath == "" {
-		pths := []string{` + outlined + `}
+`
+	if c.OutlinedProgram {
+		data += `       outlinedPath, ended = os.Args[0], true
+`
+	} else {
+		data += `		pths := []string{` + outlined + `}
 
 		for _, pth := range pths {
     	    if pth == "" { continue }
-			pth = bc.FilePath(pth)
-`
-
-	if c.OutlinedProgram {
-		data += `
 			if _, err := os.Stat(pth); err == nil {
-				if pth == os.Args[0] {
-					ended = true
-				}
-`
-	} else {
-		data += `
-			if _, err := os.Stat(pth); err == nil {		
-`
-	}
-
-	data += `
 				outlinedPath = pth
 				break;
 			} else if !os.IsNotExist(err) {
@@ -398,11 +389,12 @@ func load() {` + preInit + `
 		if outlinedPath == "" {
 			panic(errors.New("outlined path not defined"))
 		}
+`
 	}
+	data += `	}
 
     Assets.Factory = func() (assets map[string]bc.Asset, err error) {`
-	data += `
-		archiv, err := Outlined()
+	data += `		archiv, err := Outlined()
 		if err != nil {
 			return nil, err
 		}
@@ -412,6 +404,7 @@ func load() {` + preInit + `
 	}
 
     fs = xbfs.NewFileSystem(&Assets)
+	println("xbindata outlined: PATH='"+outlinedPath+"' ENDED=", ended)
 }
 
 `

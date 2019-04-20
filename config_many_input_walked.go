@@ -30,7 +30,7 @@ func (i ManyConfigInput) Walked(visited *map[string]bool, recursive bool, cb wal
 		return
 	}
 
-	cmd := exec.Command("go", "build", "-o", exe, filepath.Join(dir, "main.go"))
+	cmd := exec.Command("go", "build", "-tags", "dev", "-o", exe, filepath.Join(dir, "main.go"))
 	cmd.Dir = i.Path
 	cmd.Env = EnvS(map[string]string{
 		"GOOS":   runtime.GOOS,

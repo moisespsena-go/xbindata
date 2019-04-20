@@ -94,14 +94,6 @@
   version = "v1.8.0"
 
 [[projects]]
-  digest = "1:5d231480e1c64a726869bc4142d270184c419749d34f167646baa21008eb0a79"
-  name = "github.com/mitchellh/go-homedir"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "af06845cf3004701891bf4fdb884bfe4920b3727"
-  version = "v1.1.0"
-
-[[projects]]
   digest = "1:53bc4cd4914cd7cd52139990d5170d6dc99067ae31c56530621b18b35fc30318"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
@@ -171,11 +163,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:548fdd558f15f58efdd5be255ea8532e6149c3cd6518f436770495052f7c62f7"
+  digest = "1:751e21b46eb10d6800633cf1252bfd494e46e6a43cb8f08594c7e512cebb2049"
   name = "github.com/moisespsena-go/path-helpers"
   packages = ["."]
   pruneopts = "UT"
-  revision = "d85da131f3f5152dff99359f3d315bfbf13daf7b"
+  revision = "a03633a72ef8142e0ff8974fab1aa3420df638f2"
 
 [[projects]]
   branch = "master"

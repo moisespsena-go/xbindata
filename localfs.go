@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-const tagLocalFs = "xblocalfs"
+const tagDev = "dev"
 
 func localFs(c *Config) (err error) {
 	var (
@@ -13,7 +13,7 @@ func localFs(c *Config) (err error) {
 		pth string
 	)
 	if c.Outlined {
-		pth = strings.TrimSuffix(c.OutlinedApi, ".go") + "_localfs.go"
+		pth = strings.TrimSuffix(c.OutlinedApi, ".go") + "_dev.go"
 	}
 
 	if f, err = os.Create(pth); err != nil {
@@ -22,7 +22,7 @@ func localFs(c *Config) (err error) {
 
 	defer f.Close()
 
-	if _, err = f.WriteString("// +build " + tagLocalFs + "\n\npackage " + c.Package + "\n"); err != nil {
+	if _, err = f.WriteString("// +build " + tagDev + "\n\npackage " + c.Package + "\n"); err != nil {
 		return
 	}
 	var data string
@@ -71,7 +71,7 @@ func Load() {
 	defer func() { loaded = true }()
     fs = assetfs.NewAssetFileSystem()
     
-    inputsPath := strings.TrimSuffix(__file__, "_localfs.go") + "_inputs.yml"
+    inputsPath := strings.TrimSuffix(__file__, "_dev.go") + "_inputs.yml"
     f, err := os.Open(inputsPath)
     if err != nil {
     	panic(err)
@@ -89,12 +89,12 @@ func Load() {
 		input.Path = filepath.Join(dir, input.Path)
 		input.Prefix = filepath.Join(dir, input.Prefix)
 		if input.Ns == "" {
-			if err = fs.RegisterPath(input.Path); err != nil {
+			if err = fs.PrependPath(input.Path); err != nil {
 				panic(err)
 			}
 		} else {
 			ns := fs.NameSpaceFS(input.Ns)
-			if err = ns.RegisterPath(input.Path); err != nil {
+			if err = ns.PrependPath(input.Path); err != nil {
 				panic(err)
 			}
 		}

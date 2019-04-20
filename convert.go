@@ -137,7 +137,7 @@ func Translate(c *Config) error {
 	}
 
 	if c.Hybrid {
-		c.Tags = append(c.Tags, "!"+tagLocalFs)
+		c.Tags = append(c.Tags, "!"+tagDev)
 	}
 
 	// Write build tags, if applicable.

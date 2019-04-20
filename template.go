@@ -31,7 +31,7 @@ func (i *ManyConfigInput) format(ctx context.Context, key, value string, envs ..
 			"fpclean": filepath.Clean,
 			"fpjoin":  filepath.Join,
 			"Env":     env,
-			"PKG":     i.GetPkg(),
+			"PKG":     i.Pkg,
 		}); err != nil {
 			return
 		}

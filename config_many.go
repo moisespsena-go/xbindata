@@ -50,8 +50,7 @@ func (s ManyConfigInputSlice) Items(ctx context.Context) (r []InputConfig, err e
 type ManyConfigInput struct {
 	Path       string
 	Prefix     string
-	Ns         string
-	NameSpace  string `mapstructure:"name_space" yaml:"name_space"`
+	NameSpace  string `mapstructure:"ns" yaml:"ns"`
 	Recursive  bool
 	Ignore     IgnoreSlice
 	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
@@ -70,7 +69,7 @@ func (i *ManyConfigInput) UnmarshalMap(value interface{}) (err error) {
 	return
 }
 
-func (i *ManyConfigInput) GetPkg() string {
+func (i *ManyConfigInput) pkgSetup() {
 	if i.Pkg == "" {
 		pth := i.Path
 		if !filepath.IsAbs(pth) {
@@ -81,18 +80,12 @@ func (i *ManyConfigInput) GetPkg() string {
 		}
 		i.Pkg = path_helpers.StripGoPath(pth)
 	}
-	return i.Pkg
 }
 
-func (i *ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, err error) {
+func (i ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, err error) {
 	if i.Path == "" {
 		log.Warnf("input path not set", i.Path)
 		return
-	}
-
-	if i.Ns != "" {
-		i.NameSpace = i.Ns
-		i.Ns = ""
 	}
 
 	if key := InputKey(ctx, "[%s]:"); key != "" {
@@ -120,11 +113,13 @@ func (i *ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, e
 		return
 	}
 
+	i.pkgSetup()
+
 	if i.NameSpace != "" {
 		if i.NameSpace == "_" {
-			i.NameSpace = i.GetPkg()
+			i.NameSpace = i.Pkg
 		} else if strings.Contains(i.NameSpace, "$PKG") {
-			i.NameSpace = strings.Replace(i.NameSpace, "$PKG", i.GetPkg(), 1)
+			i.NameSpace = strings.Replace(i.NameSpace, "$PKG", i.Pkg, 1)
 		}
 
 		if i.NameSpace, err = i.format(ctx, "name_space", i.NameSpace); err != nil {
@@ -160,10 +155,6 @@ func (i *ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, e
 		}
 
 		for _, input := range xbinput.Sources {
-			if input.Ns != "" {
-				input.NameSpace = input.Ns
-				input.Ns = ""
-			}
 			if input.NameSpace != "" && i.NameSpace != "" {
 				input.NameSpace = i.NameSpace + "/" + input.NameSpace
 			}
