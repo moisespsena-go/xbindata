@@ -159,15 +159,27 @@ func (i ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, er
 				input.NameSpace = i.NameSpace + "/" + input.NameSpace
 			}
 
-			if input.Prefix != "" {
+			if input.Path[0] == '/' {
+				// example: /{{.Env.GOROOT}}/a/b
+				if input.Path[1] == '{' {
+					input.Path = input.Path[1:]
+				}
+				input.Path, _ = input.format(ctx, "Path", input.Path)
+
 				if input.Prefix == "_" {
 					input.Prefix = input.Path
 				}
+			} else {
+				if input.Prefix != "" {
+					if input.Prefix == "_" {
+						input.Prefix = input.Path
+					}
 
-				input.Prefix = filepath.Join(i.Prefix, input.Prefix)
+					input.Prefix = filepath.Join(i.Prefix, input.Prefix)
+				}
+
+				input.Path = filepath.Join(i.Path, input.Path)
 			}
-
-			input.Path = filepath.Join(i.Path, input.Path)
 
 			if !i.Recursive && input.Recursive {
 				input.Recursive = false

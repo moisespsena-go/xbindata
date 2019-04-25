@@ -21,7 +21,7 @@ func (i *ManyConfigInput) format(ctx context.Context, key, value string, envs ..
 	env := Env(append([]map[string]string{ContextEnv(ctx)}, envs...)...)
 	if strings.ContainsRune(value, '{') {
 		var t *template.Template
-		if t, err = template.New("").Parse(key); err != nil {
+		if t, err = template.New("").Parse(value); err != nil {
 			return
 		}
 		var buf bytes.Buffer
