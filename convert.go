@@ -35,9 +35,12 @@ var (
 type tocRegister struct {
 	toc    []Asset
 	byName map[string]int
+	mu     sync.Mutex
 }
 
 func (t *tocRegister) Append(asset ...Asset) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	for _, asset := range asset {
 		if i, ok := t.byName[asset.Name]; ok {
 			t.toc[i] = asset
