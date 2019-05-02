@@ -18,16 +18,16 @@ import (
 // They are added to the given map as keys. Values will be safe function names
 // for each file, which will be used when generating the output code.
 type Finder struct {
-	toc           *tocRegister
-	ignore        []*regexp.Regexp
-	ignoreGlob    []glob.Glob
-	knownFuncs    map[string]int
-	visitedPaths  map[string]bool
-	knownFuncsMux sync.RWMutex
+	toc          *tocRegister
+	ignore       []*regexp.Regexp
+	ignoreGlob   []glob.Glob
+	knownFuncs   map[string]int
+	visitedPaths map[string]bool
+	mu           *sync.Mutex
 }
 
 // find now
-func (f Finder) find(input *InputConfig, prefix string) (err error) {
+func (this Finder) find(input *InputConfig, prefix string) (err error) {
 	var dirpath string
 	if len(prefix) > 0 {
 		dirpath, _ = filepath.Abs(input.Path)
@@ -39,22 +39,21 @@ func (f Finder) find(input *InputConfig, prefix string) (err error) {
 		return err
 	}
 
-	var mu sync.Mutex
-
-	return input.Walk(&f.visitedPaths, func(info walker.FileInfo) (err error) {
+	return input.Walk(&this.visitedPaths, func(info walker.FileInfo) (err error) {
 		if info.IsDir() {
 			return nil
 		}
-		for _, re := range f.ignore {
+		for _, re := range this.ignore {
 			if re.MatchString(info.Path) {
 				return nil
 			}
 		}
-		for _, ignore := range f.ignoreGlob {
+		for _, ignore := range this.ignoreGlob {
 			if ignore.Match(info.Path) {
 				return nil
 			}
 		}
+
 		var asset Asset
 		asset.Name = filepath.ToSlash(info.Path)
 
@@ -83,11 +82,11 @@ func (f Finder) find(input *InputConfig, prefix string) (err error) {
 		asset.info = info
 		asset.Size = info.Size()
 
-		mu.Lock()
-		defer mu.Unlock()
+		this.mu.Lock()
+		defer this.mu.Unlock()
 
-		asset.Func = safeFunctionName(asset.Name, f.knownFuncs, &f.knownFuncsMux)
-		f.toc.Append(asset)
+		asset.Func = safeFunctionName(asset.Name, this.knownFuncs)
+		this.toc.Append(asset)
 		return nil
 	})
 }

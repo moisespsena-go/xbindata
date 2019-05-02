@@ -430,7 +430,7 @@ func (a *ManyConfigOutlined) UnmarshalMap(value interface{}) (err error) {
 	return
 }
 
-func (a *ManyConfigOutlined) Translate(ctx context.Context) (err error) {
+func (a *ManyConfigOutlined) Translate(ctx context.Context) (count int, err error) {
 	var c *Config
 	if c, err = a.Config(ctx); err != nil {
 		return

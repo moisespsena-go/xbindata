@@ -1,12 +1,13 @@
 package xbindata
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/go-errors/errors"
 	"github.com/moisespsena-go/xbindata/tempfile"
@@ -50,45 +51,25 @@ func (i ManyConfigInput) Walked(visited *map[string]bool, recursive bool, cb wal
 	cmd.Dir = i.Path
 	cmd.Env = os.Environ()
 
-	fr, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("pipe stdout failed: %v", err)
-	}
-	defer fr.Close()
+	var out bytes.Buffer
+	cmd.Stdout = &out
 	cmd.Stderr = os.Stderr
 
-	var scanner = bufio.NewScanner(fr)
-
-	if err = cmd.Start(); err != nil {
-		return fmt.Errorf("start failed: %v", err)
+	if err = cmd.Run(); err != nil {
+		return
 	}
 
-	var closed bool
-	defer func() {
-		if !closed {
-			cmd.Process.Kill()
-			cmd.Wait()
+	for _, pth := range strings.Split(out.String(), "\n") {
+		pth = strings.TrimSpace(pth)
+		pth = filepath.Join(i.Path, pth)
+		var info os.FileInfo
+		if info, err = os.Stat(pth); err != nil {
+			return
 		}
-	}()
-
-	go func() {
-		for scanner.Scan() {
-			pth := scanner.Text()
-			pth = filepath.Join(i.Path, pth)
-			var info os.FileInfo
-			if info, err = os.Stat(pth); err != nil {
-				return
-			}
-			if err = cb(walker.FileInfo{FileInfo: info, Path: pth}); err != nil {
-				return
-			}
+		if err = cb(walker.FileInfo{FileInfo: info, Path: pth}); err != nil {
+			return
 		}
-	}()
-
-	if err2 := cmd.Wait(); err == nil && err2 != nil {
-		err = err2
 	}
-	closed = true
 
 	return err
 }

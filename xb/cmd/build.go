@@ -114,24 +114,32 @@ var (
 
 			for i, cfg := range cfg.Outlined {
 				log.Println("==== cfg config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
-				var c *xbindata.Config
+				var (
+					c     *xbindata.Config
+					count int
+				)
 				if c, err = cfg.Config(ctx); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
 				}
-				if err = xbindata.Translate(c); err != nil {
+				if count, err = xbindata.Translate(c); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
 				}
+				log.Printf("done with %d assets.\n", count)
 			}
 
 			for i, cfg := range cfg.Embedded {
 				log.Println("==== embeded config #"+strconv.Itoa(i)+":", cfg.Pkg, " ====")
-				var c *xbindata.Config
+				var (
+					c     *xbindata.Config
+					count int
+				)
 				if c, err = cfg.Config(ctx); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
 				}
-				if err = xbindata.Translate(c); err != nil {
+				if count, err = xbindata.Translate(c); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
 				}
+				log.Printf("done with %d assets.\n", count)
 			}
 
 			return

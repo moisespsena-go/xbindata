@@ -54,11 +54,11 @@ func (t *tocRegister) Append(asset ...Asset) {
 // Translate reads assets from an input directory, converts them
 // to Go code and writes new files to the output specified
 // in the given configuration.
-func Translate(c *Config) error {
+func Translate(c *Config) (count int, err error) {
 
 	// Ensure our configuration has sane values.
-	if err := c.validate(); err != nil {
-		return err
+	if err = c.validate(); err != nil {
+		return
 	}
 
 	var (
@@ -70,6 +70,8 @@ func Translate(c *Config) error {
 	{
 		tocr := &tocRegister{byName: map[string]int{}}
 
+		var finderMu sync.Mutex
+
 		// Locate all the assets.
 		for _, input := range c.Input {
 			finder := Finder{
@@ -78,6 +80,7 @@ func Translate(c *Config) error {
 				ignoreGlob:   append(c.IgnoreGlob, input.IgnoreGlob...),
 				knownFuncs:   knownFuncs,
 				visitedPaths: visitedPaths,
+				mu:           &finderMu,
 			}
 
 			prefix := c.Prefix
@@ -85,8 +88,8 @@ func Translate(c *Config) error {
 				prefix = input.Prefix
 			}
 
-			if err := finder.find(&input, prefix); err != nil {
-				return err
+			if err = finder.find(&input, prefix); err != nil {
+				return
 			}
 		}
 
@@ -100,13 +103,14 @@ func Translate(c *Config) error {
 	// Create output file.
 	buf := new(bytes.Buffer)
 	// Write the header. This makes e.g. Github ignore diffs in generated files.
-	if _, err := buf.WriteString("// " + generatedHeader); err != nil {
-		return err
+	if _, err = buf.WriteString("// " + generatedHeader); err != nil {
+		return
 	}
 
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
+	var wd string
+
+	if wd, err = os.Getwd(); err != nil {
+		return
 	}
 
 	if c.Outlined {
@@ -118,24 +122,25 @@ func Translate(c *Config) error {
 		}
 	} else {
 		if _, err = fmt.Fprint(buf, "// sources:\n"); err != nil {
-			return err
+			return
 		}
 
 		for _, asset := range toc {
-			relative, err := filepath.Rel(wd, asset.Path)
+			var relative string
+			relative, err = filepath.Rel(wd, asset.Path)
 			if err != nil {
-				return err
+				return
 			}
 			if _, err = fmt.Fprintf(buf, "// %s (%s)\n", filepath.ToSlash(relative), bits2str.Bits(asset.Size)*bits2str.Byte); err != nil {
-				return err
+				return
 			}
 		}
 		if _, err = fmt.Fprint(buf, "\n"); err != nil {
-			return err
+			return
 		}
 
 		if err = logTocAndInputs(filepath.Dir(c.Output), strings.TrimSuffix(filepath.Base(c.Output), ".go")+"_", c, toc); err != nil {
-			return err
+			return
 		}
 	}
 
@@ -145,15 +150,15 @@ func Translate(c *Config) error {
 
 	// Write build tags, if applicable.
 	if len(c.Tags) > 0 {
-		if _, err := fmt.Fprintf(buf, "\n// +build %s\n\n", strings.Join(c.Tags, "\n// +build ")); err != nil {
-			return err
+		if _, err = fmt.Fprintf(buf, "\n// +build %s\n\n", strings.Join(c.Tags, "\n// +build ")); err != nil {
+			return
 		}
 	}
 
 	// Write package declaration.
 	_, err = fmt.Fprintf(buf, "package %s\n\n", path.Base(c.Package))
 	if err != nil {
-		return err
+		return
 	}
 
 	// Write assets.
@@ -170,20 +175,19 @@ func Translate(c *Config) error {
 		err = writeRelease(buf, c, toc)
 	}
 	if err != nil {
-		return err
+		return
 	}
 
 	if c.Hybrid {
 		if err = localFs(c); err != nil {
-			return err
+			return
 		}
 	}
 
-	if c.Outlined {
-	} else {
+	if !c.Outlined {
 		// Write table of contents
-		if err := writeTOC(c, buf, toc); err != nil {
-			return err
+		if err = writeTOC(c, buf, toc); err != nil {
+			return
 		}
 	}
 
@@ -194,7 +198,7 @@ func Translate(c *Config) error {
 		}
 
 		if err = safefileWriteFile(dest, buf.Bytes(), 0); err != nil {
-			return err
+			return
 		}
 	}
 
@@ -206,18 +210,19 @@ func Translate(c *Config) error {
 				log.Printf("user headers file: `%v`\n", c.OutlinedHeadersOutput)
 
 				if err = safefileWriteFile(c.OutlinedHeadersOutput, buf.Bytes(), 0); err != nil {
-					return err
+					return
 				}
 			} else if err != nil {
-				return fmt.Errorf("write headers to buffer failed: %v", err.Error())
+				err = fmt.Errorf("write headers to buffer failed: %v", err.Error())
+				return
 			}
 
 			if err = logTocAndInputs(filepath.Dir(c.OutlinedApi), strings.TrimSuffix(filepath.Base(c.OutlinedApi), ".go")+"_", c, toc); err != nil {
-				return err
+				return
 			}
 
 			if err != nil {
-				return err
+				return
 			}
 		}
 
@@ -238,7 +243,8 @@ func Translate(c *Config) error {
 			} else {
 				outputFile := c.Output
 				if outputFile, err = filepath.Abs(outputFile); err != nil {
-					return fmt.Errorf("abs path failed: %v", err.Error())
+					err = fmt.Errorf("abs path failed: %v", err.Error())
+					return
 				}
 				log.Println("destination file: `" + outputFile + "`")
 				if c.OutlinedProgram {
@@ -252,7 +258,7 @@ func Translate(c *Config) error {
 		}
 	}
 
-	return err
+	return len(toc), nil
 }
 
 var regFuncName = regexp.MustCompile(`[^a-zA-Z0-9_]`)
@@ -261,7 +267,7 @@ var regFuncName = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 // which qualifies as a valid function identifier. It
 // also compares against a known list of functions to
 // prevent conflict based on name translation.
-func safeFunctionName(name string, knownFuncs map[string]int, mux *sync.RWMutex) string {
+func safeFunctionName(name string, knownFuncs map[string]int) string {
 	var inBytes, outBytes []byte
 	var toUpper bool
 
@@ -286,12 +292,7 @@ func safeFunctionName(name string, knownFuncs map[string]int, mux *sync.RWMutex)
 		name = "_" + name
 	}
 
-	mux.RLock()
 	num, ok := knownFuncs[name]
-	mux.RUnlock()
-
-	mux.Lock()
-	defer mux.Unlock()
 	if ok {
 		knownFuncs[name] = num + 1
 		name = fmt.Sprintf("%s%d", name, num)

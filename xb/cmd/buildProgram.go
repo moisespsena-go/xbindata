@@ -153,7 +153,10 @@ Examples:
 
 		for _, cfg := range cfg.Outlined {
 			if cfg.Program {
-				var c *xbindata.Config
+				var (
+					c     *xbindata.Config
+					count int
+				)
 				c, err = cfg.Config(context.Background())
 				if err != nil {
 					return err
@@ -174,9 +177,10 @@ Examples:
 						c.OutputWriter = os.Stdout
 					}
 					c.Output = pth
-					if err = xbindata.Translate(c); err != nil {
+					if count, err = xbindata.Translate(c); err != nil {
 						return err
 					}
+					log.Printf("done with %d assets.\n", count)
 				}
 				return nil
 			}

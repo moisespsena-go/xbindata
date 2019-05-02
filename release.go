@@ -333,7 +333,7 @@ func header_outlined(w io.Writer, c *Config, toc []Asset, imports ...string) (er
 	data := `
 var (
 	pkg          = path_helpers.GetCalledDir()
-    envName      = "XB_"+strings.NewReplacer("/", "_", ".", "", "-", "").Replace(strings.ToUpper(pkg))
+    envName      = "XB_"+strings.NewReplacer("/", "_", ".", "", "-", "").Replace(strings.ToUpper(strings.ReplaceAll(pkg, "/go-", "/")))
 
 	_outlined     *outlined.Outlined
 	outlinedPaths []string
@@ -368,6 +368,7 @@ func Outlined() (archiv *outlined.Outlined, err error) {
 }
 
 func load() {` + preInit + `
+	println(pkg+" env name: "+envName)
 	if outlinedPath == "" {
 `
 	if c.OutlinedProgram {
