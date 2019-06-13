@@ -15,7 +15,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/moisespsena-go/path-helpers"
+	path_helpers "github.com/moisespsena-go/path-helpers"
 	"github.com/moisespsena-go/xbindata/ignore"
 
 	"github.com/mitchellh/mapstructure"

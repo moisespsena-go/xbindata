@@ -103,7 +103,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ba2b26c747d7c38e96bb5f601c7a7052cd8a0b2763d374b35059f8b67e5572eb"
+  digest = "1:f97db8979abc0b3e88caf5e8c0ad14dae851f3a9b27d66f562128576ed14c1c6"
   name = "github.com/moisespsena-go/assetfs"
   packages = [
     ".",
@@ -111,7 +111,7 @@
     "local",
   ]
   pruneopts = "UT"
-  revision = "e7c9e99a64ab3c4a343a224ddd7ad1dfdc1be556"
+  revision = "fd6fad9cc1c273e34f441f535795750ad531c02f"
 
 [[projects]]
   branch = "master"
@@ -155,19 +155,19 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:68ada5008821627aaaf8ecbdf2e15295b9075517392698b09cda915e5b82c10e"
+  digest = "1:0968632068567b4cac7e961fc2878ea61e8cbdc0a6df6fe7505ab00d79b04efd"
   name = "github.com/moisespsena-go/os-common"
   packages = ["."]
   pruneopts = "UT"
-  revision = "d61b884dcd32b7dffa711eee603254e6dab3175a"
+  revision = "3ed619843d2b32ec555d863200b61b6452009721"
 
 [[projects]]
   branch = "master"
-  digest = "1:751e21b46eb10d6800633cf1252bfd494e46e6a43cb8f08594c7e512cebb2049"
+  digest = "1:f1443d9234be53ce50a458c2c8b62bcc198850115487f9f2096426ef94337019"
   name = "github.com/moisespsena-go/path-helpers"
   packages = ["."]
   pruneopts = "UT"
-  revision = "a03633a72ef8142e0ff8974fab1aa3420df638f2"
+  revision = "da5a1e5e0670a04f516d3534f8d1706a32ffb394"
 
 [[projects]]
   branch = "master"
