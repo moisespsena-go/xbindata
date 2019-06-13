@@ -2,6 +2,7 @@ package xbfs
 
 import (
 	"io"
+	"os"
 
 	"github.com/moisespsena-go/assetfs/assetfsapi"
 
@@ -16,6 +17,10 @@ type FileInfo struct {
 }
 
 func NewFileInfo(a xbcommon.Asset, path string) *FileInfo { return &FileInfo{a, path} }
+
+func (b *FileInfo) GetFileInfo() os.FileInfo {
+	return b.Asset
+}
 
 func (b *FileInfo) Path() string     { return b.path }
 func (b *FileInfo) RealPath() string { return b.Asset.Path() }
@@ -33,6 +38,9 @@ type DirInfo struct {
 
 func NewDirInfo(node xbcommon.NodeDir, pth string) *DirInfo { return &DirInfo{node, pth} }
 
+func (d *DirInfo) GetFileInfo() os.FileInfo {
+	return d.NodeDir
+}
 func (d *DirInfo) Path() string                              { return d.path }
 func (d *DirInfo) RealPath() string                          { return d.NodeDir.Path() }
 func (DirInfo) Type() assetfsapi.FileType                    { return assetfsapi.FileTypeBindata | assetfsapi.FileTypeDir }
