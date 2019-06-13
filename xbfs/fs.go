@@ -156,7 +156,7 @@ func (fs *FileSystem) GetParent() assetfsapi.Interface {
 
 func (fs *FileSystem) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if fs.HttpHandler == nil {
-		fs.HttpHandler = assetfs.HTTPStaticHandler(fs)
+		fs.HttpHandler = assetfs.HttpStaticHandler(fs)
 	}
 	fs.HttpHandler.ServeHTTP(w, r)
 }
