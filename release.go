@@ -368,7 +368,6 @@ func Outlined() (archiv *outlined.Outlined, err error) {
 }
 
 func load() {` + preInit + `
-	println(pkg+" env name: "+envName)
 	if outlinedPath == "" {
 `
 	if c.OutlinedProgram {
@@ -405,7 +404,6 @@ func load() {` + preInit + `
 	}
 
     fs = xbfs.NewFileSystem(&Assets)
-	println("xbindata outlined: PATH='"+outlinedPath+"' ENDED=", ended)
 }
 
 `
