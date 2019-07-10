@@ -118,6 +118,7 @@ func (w *Walker) IgnoreFunc(f ...func(pth string) bool) *Walker {
 
 // find now
 func (w Walker) Walk(dirpath string, cb WalkCallback) (err error) {
+	dirpath = filepath.Clean(dirpath)
 	fi, err := os.Stat(dirpath)
 	if err != nil {
 		return err

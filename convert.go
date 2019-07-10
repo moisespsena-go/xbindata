@@ -88,7 +88,7 @@ func Translate(c *Config) (count int, err error) {
 				prefix = input.Prefix
 			}
 
-			if err = finder.find(&input, prefix); err != nil {
+			if err = finder.find(&input, path.Clean(prefix)); err != nil {
 				return
 			}
 		}
