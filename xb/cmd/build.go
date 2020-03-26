@@ -83,6 +83,10 @@ var (
 				return
 			}
 
+			if len(args) > 0 && (args[0] == "." || args[0] == "."+string(filepath.Separator)) {
+				args = args[1:]
+			}
+
 			if len(args) > 0 {
 				var (
 					embedded []xbindata.ManyConfigEmbedded
