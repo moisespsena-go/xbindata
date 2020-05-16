@@ -47,6 +47,8 @@ type InputConfig struct {
 
 	NameSpace string
 
+	DirReplacesCount int
+
 	WalkFunc func(visited *map[string]bool, recursive bool, cb func(info walker.FileInfo) error) error
 }
 

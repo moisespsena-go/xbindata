@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-errors/errors"
+	"github.com/pkg/errors"
 
 	"github.com/apex/log"
 
@@ -48,13 +48,14 @@ func (s ManyConfigInputSlice) Items(ctx context.Context) (r []InputConfig, err e
 }
 
 type ManyConfigInput struct {
-	Path       string
-	Prefix     string
-	NameSpace  string `mapstructure:"ns" yaml:"ns"`
-	Recursive  bool
-	Ignore     IgnoreSlice
-	IgnoreGlob IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
-	Pkg        string
+	Path             string
+	Prefix           string
+	NameSpace        string `mapstructure:"ns" yaml:"ns"`
+	Recursive        bool
+	Ignore           IgnoreSlice
+	DirReplacesCount int
+	IgnoreGlob       IgnoreGlobSlice `mapstructure:"ignore_glob" yaml:"ignore_glob"`
+	Pkg              string
 }
 
 func (i *ManyConfigInput) UnmarshalMap(value interface{}) (err error) {
@@ -119,11 +120,22 @@ func (i ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, er
 		if i.NameSpace == "_" {
 			i.NameSpace = i.Pkg
 		} else if strings.Contains(i.NameSpace, "$PKG") {
-			i.NameSpace = strings.Replace(i.NameSpace, "$PKG", i.Pkg, 1)
+			i.NameSpace = strings.ReplaceAll(i.NameSpace, "$PKG", i.Pkg)
 		}
 
 		if i.NameSpace, err = i.format(ctx, "name_space", i.NameSpace); err != nil {
 			return
+		}
+
+		if startPos := strings.IndexByte(i.NameSpace, '('); startPos != -1 {
+			if endPos := strings.IndexByte(i.NameSpace[startPos:], ')'); endPos > 0 {
+				endPos += startPos
+				if i.DirReplacesCount, err = strconv.Atoi(i.NameSpace[1:endPos]); err != nil {
+					err = errors.Wrapf(err, "parse prefix trimer count")
+					return
+				}
+				i.NameSpace = i.NameSpace[0:startPos] + "?" + i.NameSpace[endPos+1:]
+			}
 		}
 
 		i.NameSpace = path.Clean(i.NameSpace)
@@ -199,10 +211,11 @@ func (i ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, er
 	}
 
 	c := &InputConfig{
-		Path:      i.Path,
-		Recursive: i.Recursive,
-		Prefix:    i.Prefix,
-		NameSpace: i.NameSpace,
+		Path:             i.Path,
+		Recursive:        i.Recursive,
+		Prefix:           i.Prefix,
+		NameSpace:        i.NameSpace,
+		DirReplacesCount: i.DirReplacesCount,
 	}
 
 	if i.Prefix == "_" {

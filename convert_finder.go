@@ -67,7 +67,17 @@ func (this Finder) find(input *InputConfig, prefix string) (err error) {
 		}
 
 		if len(info.NamePrefix) > 0 {
+			var namePrefix []string
+			for i := 0; i < input.DirReplacesCount; i++ {
+				if pos := strings.IndexByte(asset.Name, '/'); pos > 0 {
+					namePrefix = append(namePrefix, asset.Name[0:pos])
+					asset.Name = strings.TrimPrefix(asset.Name[pos+1:], "/")
+				}
+			}
 			asset.Name = path.Join(append(info.NamePrefix, asset.Name)...)
+			if len(namePrefix) > 0 {
+				asset.Name = strings.ReplaceAll(asset.Name, "?", path.Join(namePrefix...))
+			}
 		}
 
 		// This shouldn't happen.
