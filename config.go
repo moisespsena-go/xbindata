@@ -49,12 +49,12 @@ type InputConfig struct {
 
 	DirReplacesCount int
 
-	WalkFunc func(visited *map[string]bool, recursive bool, cb func(info walker.FileInfo) error) error
+	WalkFunc func(visited *map[string]bool, prod, recursive bool, cb func(info walker.FileInfo) error) error
 }
 
-func (i InputConfig) Walk(visited *map[string]bool, cb walker.WalkCallback) (err error) {
+func (i InputConfig) Walk(visited *map[string]bool, prod bool, cb walker.WalkCallback) (err error) {
 	if i.WalkFunc != nil {
-		return i.WalkFunc(visited, i.Recursive, i.prepareCb(cb))
+		return i.WalkFunc(visited, prod, i.Recursive, i.prepareCb(cb))
 	}
 
 	return i.DefaultWalk(visited, i.Recursive, cb)
@@ -242,6 +242,8 @@ type Config struct {
 	NoStore bool
 
 	OulinedSkipApi bool
+
+	InputProduction bool
 
 	FileSystemLoadCallbacks []string
 }

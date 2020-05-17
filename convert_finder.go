@@ -24,6 +24,7 @@ type Finder struct {
 	knownFuncs   map[string]int
 	visitedPaths map[string]bool
 	mu           *sync.Mutex
+	production   bool
 }
 
 // find now
@@ -39,7 +40,7 @@ func (this Finder) find(input *InputConfig, prefix string) (err error) {
 		return err
 	}
 
-	return input.Walk(&this.visitedPaths, func(info walker.FileInfo) (err error) {
+	return input.Walk(&this.visitedPaths, this.production, func(info walker.FileInfo) (err error) {
 		if info.IsDir() {
 			return nil
 		}

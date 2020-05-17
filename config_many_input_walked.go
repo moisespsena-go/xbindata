@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/go-errors/errors"
+
 	"github.com/moisespsena-go/xbindata/tempfile"
 	"github.com/moisespsena-go/xbindata/walker"
 )
 
-func (i ManyConfigInput) Walked(visited *map[string]bool, recursive bool, cb walker.WalkCallback) (err error) {
+func (i ManyConfigInput) Walked(_ *map[string]bool, prod, _ bool, cb walker.WalkCallback) (err error) {
 	dir := filepath.Join(i.Path, ".xbwalk")
 	defer func() {
 		if err != nil {
@@ -47,7 +48,11 @@ func (i ManyConfigInput) Walked(visited *map[string]bool, recursive bool, cb wal
 
 	defer os.Remove(exe)
 
-	cmd = exec.Command(exe)
+	var args []string
+	if prod {
+		args = append(args, "prod")
+	}
+	cmd = exec.Command(exe, args...)
 	cmd.Dir = i.Path
 	cmd.Env = os.Environ()
 

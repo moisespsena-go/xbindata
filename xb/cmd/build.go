@@ -25,9 +25,10 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/moisespsena-go/xbindata"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/moisespsena-go/xbindata"
 )
 
 func unmarshalConfig(dest interface{}) error {
@@ -61,6 +62,7 @@ var (
 		Short: "build all or specified PKG from config file",
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 			var cfg xbindata.ManyConfig
+			var prod, _ = cmd.Flags().GetBool("prod")
 			if err = unmarshalConfig(&cfg); err != nil {
 				return
 			}
@@ -125,6 +127,7 @@ var (
 				if c, err = cfg.Config(ctx); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
 				}
+				c.InputProduction = prod
 				if count, err = xbindata.Translate(c); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
 				}
@@ -140,6 +143,7 @@ var (
 				if c, err = cfg.Config(ctx); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: create config failed: %v", i, cfg.Pkg, err)
 				}
+				c.InputProduction = prod
 				if count, err = xbindata.Translate(c); err != nil {
 					return fmt.Errorf("cfg #%d [%s]: translate failed: %v", i, cfg.Pkg, err)
 				}
@@ -155,6 +159,7 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 	flag := buildCmd.Flags()
 	flag.BoolP("program", "P", false, "build outlined and append contents into program")
+	flag.Bool("prod", false, "build with production mode")
 	flag.StringP("outlined-output-dir", "d", "_assets", "The outlined output root dir")
 	flag.StringP("outlined-output-local-dir", "D", "_assets", "The outlined Local FS root dir")
 

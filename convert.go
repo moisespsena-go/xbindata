@@ -81,6 +81,7 @@ func Translate(c *Config) (count int, err error) {
 				knownFuncs:   knownFuncs,
 				visitedPaths: visitedPaths,
 				mu:           &finderMu,
+				production:   c.InputProduction,
 			}
 
 			prefix := c.Prefix
