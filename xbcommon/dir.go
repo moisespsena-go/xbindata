@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moisespsena-go/os-common"
+	oscommon "github.com/moisespsena-go/os-common"
 )
 
 type Dir struct {
@@ -59,6 +59,21 @@ func (t *Dir) Dir(name string) (d NodeDir) {
 	return
 }
 
+func (t *Dir) Find(name string) (node Node) {
+	var ok bool
+	names := strings.Split(name, "/")
+	names, name = names[0:len(names)-1], names[len(names)-1]
+
+	for _, name := range names {
+		if node, ok = t.children[name]; !ok {
+			return nil
+		}
+		if t, _ = node.(*Dir); t == nil {
+			return nil
+		}
+	}
+	return t.children[name]
+}
 func (t *Dir) Asset(name string) (a Asset) {
 	n, _ := t.Get(name)
 	return n.(Asset)

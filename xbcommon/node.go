@@ -30,6 +30,7 @@ type NodeDir interface {
 	Walk(cb func(dir, name string, n Node, data interface{}) (ret interface{}, err error)) (err error)
 	WalkPrefix(prefix string, cb func(dir, name string, n Node, data interface{}) (ret interface{}, err error), data interface{}) (err error)
 	GetDir(pth string) (d NodeDir, err error)
+	Find(name string) (node Node)
 }
 
 type Asset interface {

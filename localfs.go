@@ -29,28 +29,29 @@ func localFs(c *Config) (err error) {
 
 	data += `
 import (
+	"bufio"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"sync"
 
+	path_helpers "github.com/moisespsena-go/path-helpers"
+	"gopkg.in/yaml.v2"
+
 	"github.com/moisespsena-go/assetfs"
 	fsapi "github.com/moisespsena-go/assetfs/assetfsapi"
-	"github.com/moisespsena-go/path-helpers"
-	"gopkg.in/yaml.v2"
+
+	bc "github.com/moisespsena-go/xbindata/xbcommon"
+	"github.com/moisespsena-go/xbindata/xbfs"
 )
 
-type inputStruct struct {
-	Path, Prefix, Ns string
-}
-
 var (
-    loaded          bool
-    mu              sync.Mutex
-    fs              *assetfs.AssetFileSystem
+	loaded          bool
+	mu              sync.Mutex
+	fs              fsapi.Interface
 	fsLoadCallbacks []func(fs fsapi.Interface)
 
-    __file__ = path_helpers.GetCalledFile(true)
+	__file__ = path_helpers.GetCalledFile(true)
 )
 
 func OnFsLoad(cb ...func(fs fsapi.Interface)) {
@@ -64,46 +65,62 @@ func callFsLoadCallbacks() {
 }
 
 func Load() {
-    if loaded {	return }
-    mu.Lock()
-    defer mu.Unlock()
-    if loaded {	return }
+	if loaded {
+		return
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if loaded {
+		return
+	}
 	defer func() { loaded = true }()
-    fs = assetfs.NewAssetFileSystem()
-    
-    inputsPath := strings.TrimSuffix(__file__, "_dev.go") + "_inputs.yml"
-    f, err := os.Open(inputsPath)
-    if err != nil {
-    	panic(err)
-    }
-    defer f.Close()
-    
-    var inputs []inputStruct
-	if err = yaml.NewDecoder(f).Decode(&inputs); err != nil {
+
+	pathsF, err := os.Open(strings.TrimSuffix(__file__, "_dev.go") + "_toc_paths.yml")
+	if err != nil {
 		panic(err)
 	}
+	defer pathsF.Close()
 
-    dir := filepath.Dir(__file__)
+	namesF, err := os.Open(strings.TrimSuffix(__file__, "_dev.go") + "_toc_names.yml")
+	if err != nil {
+		panic(err)
+	}
+	defer namesF.Close()
 
-	for _, input := range inputs {
-		input.Path = filepath.Join(dir, input.Path)
-		input.Prefix = filepath.Join(dir, input.Prefix)
-		if input.Ns == "" {
-			if err = fs.PrependPath(input.Path); err != nil {
-				panic(err)
-			}
+	pathScanner := bufio.NewScanner(pathsF)
+	nameScanner := bufio.NewScanner(namesF)
+
+	// skip first line
+	pathScanner.Scan()
+	nameScanner.Scan()
+
+	var assets []bc.Asset
+
+	for pathScanner.Scan() && nameScanner.Scan() {
+		var (
+			nameS []struct{ Name string }
+			pathS []string
+			pth   = pathScanner.Text()
+			name  = nameScanner.Text()
+		)
+		yaml.Unmarshal([]byte(pth), &pathS)
+		yaml.Unmarshal([]byte(name), &nameS)
+		pth, name = path.Join(path.Dir(__file__), pathS[0]), nameS[0].Name
+
+		if info, err := os.Stat(pth); err != nil {
+			panic(err)
 		} else {
-			ns := fs.NameSpaceFS(input.Ns)
-			if err = ns.PrependPath(input.Path); err != nil {
-				panic(err)
-			}
+			localAsset := assetfs.NewRealFileInfo(fsapi.OsFileInfoToBasic(name, info), pth)
+			assets = append(assets, &bc.LocalFile{RealFileInfo: localAsset})
 		}
 	}
+
+	fs = xbfs.NewFileSystem(bc.NewTree(assets...).Root())
 }
 
-func FS() *assetfs.AssetFileSystem {
-    Load()
-    return fs
+func FS() fsapi.Interface {
+	Load()
+	return fs
 }
 `
 

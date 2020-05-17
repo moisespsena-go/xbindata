@@ -2,17 +2,18 @@ package xbfs
 
 import (
 	"context"
-	"github.com/moisespsena-go/assetfs/assetfsapi"
 	"path"
 
-	"github.com/moisespsena-go/os-common"
+	"github.com/moisespsena-go/assetfs/assetfsapi"
+
+	oscommon "github.com/moisespsena-go/os-common"
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
 )
 
 // Names list matched files from assetfs
 func glob(fs *FileSystem, pattern assetfsapi.GlobPattern, cb func(pth string, isDir bool) error) (err error) {
-	var root = fs.assets.Root()
+	var root = fs.assets
 	if fs.root != nil {
 		if root, err = root.GetDir(pattern.Dir()); err != nil {
 			return
@@ -25,7 +26,7 @@ func glob(fs *FileSystem, pattern assetfsapi.GlobPattern, cb func(pth string, is
 
 // Names list matched files from assetfs
 func globInfo(fs *FileSystem, pattern assetfsapi.GlobPattern, cb func(info assetfsapi.FileInfo) error) (err error) {
-	var root = fs.assets.Root()
+	var root = fs.assets
 	if fs.path != "" {
 		pattern = pattern.Wrap(fs.path)
 	}
@@ -36,25 +37,28 @@ func asset(fs *FileSystem, ctx context.Context, name string) ([]byte, error) {
 	if fs.root != nil {
 		name = path.Join(fs.path, name)
 	}
-	if asset, ok := fs.assets.GetC(ctx, name); !ok {
+	if asset := fs.assets.Asset(name); asset == nil {
 		return nil, oscommon.ErrNotFound(name)
 	} else {
 		return asset.Data()
 	}
 }
 
-func assetInfo(fs *FileSystem, ctx context.Context, name string) (assetfsapi.FileInfo, error) {
+func assetInfo(fs *FileSystem, _ context.Context, name string) (_ assetfsapi.FileInfo, err error) {
 	if fs.root != nil {
 		name = path.Join(fs.path, name)
 	}
-	if asset, ok := fs.assets.GetC(ctx, name); ok {
-		return NewFileInfo(asset, name), nil
+	if node := fs.assets.Find(name); node != nil {
+		if dir, ok := node.(xbcommon.NodeDir); ok {
+			return NewDirInfo(dir, name), nil
+		}
+		return NewFileInfo(node.(xbcommon.Asset), name), nil
 	}
 	return nil, oscommon.ErrNotFound(name)
 }
 
 func readDir(fs *FileSystem, dir string, cb assetfsapi.CbWalkInfoFunc, skipDir bool) (err error) {
-	var n = fs.assets.Root()
+	var n = fs.assets
 
 	if n, err = n.GetDir(dir); err != nil {
 		return
@@ -77,7 +81,7 @@ func readDir(fs *FileSystem, dir string, cb assetfsapi.CbWalkInfoFunc, skipDir b
 }
 
 func walk(fs *FileSystem, dir string, cb assetfsapi.CbWalkFunc, mode assetfsapi.WalkMode) (err error) {
-	var n = fs.assets.Root()
+	var n = fs.assets
 
 	if dir == "" {
 		dir = "."
@@ -103,7 +107,7 @@ func walk(fs *FileSystem, dir string, cb assetfsapi.CbWalkFunc, mode assetfsapi.
 }
 
 func walkInfo(fs *FileSystem, dir string, cb assetfsapi.CbWalkInfoFunc, mode assetfsapi.WalkMode) (err error) {
-	var n = fs.assets.Root()
+	var n = fs.assets
 
 	if n, err = n.GetDir(dir); err != nil {
 		return

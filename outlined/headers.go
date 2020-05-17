@@ -11,9 +11,7 @@ import (
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
 
-	"github.com/moisespsena-go/error-wrap"
-
-	"github.com/moisespsena-go/path-helpers"
+	path_helpers "github.com/moisespsena-go/path-helpers"
 	"github.com/pkg/errors"
 )
 
@@ -26,7 +24,7 @@ func (headers Headers) Store(w io.Writer) (err error) {
 
 	for i, asset := range headers {
 		if err = asset.LoadDigest(cHash); err != nil {
-			return errwrap.Wrap(err, "Header[%d] Load Digest", i)
+			return errors.Wrapf(err, "Header[%d] Load Digest", i)
 		}
 	}
 
@@ -54,7 +52,7 @@ func (headers Headers) Store(w io.Writer) (err error) {
 
 	for i := range headers {
 		if err = headers.do(i, w); err != nil {
-			return errwrap.Wrap(err, "Header[%d]", i)
+			return errors.Wrapf(err, "Header[%d]", i)
 		}
 	}
 
@@ -118,7 +116,7 @@ func (headers Headers) AppendW(w io.Writer) (err error) {
 	}
 	size := wc.count
 	log.Infof("Outlined size: %d", size)
-	err = errwrap.Wrap(binary.Write(w, binaryDir, uint32(size)), "write end size")
+	err = errors.Wrapf(binary.Write(w, binaryDir, uint32(size)), "write end size")
 	return
 }
 
@@ -132,7 +130,7 @@ func (headers Headers) do(i int, w io.Writer) (err error) {
 	a := headers[i]
 	defer func() {
 		if err != nil {
-			err = errwrap.Wrap(err, "%q", a.Path())
+			err = errors.Wrapf(err, "%q", a.Path())
 		}
 	}()
 	s, err := os.Stat(a.SysPath)

@@ -36,7 +36,8 @@ type (
 
 func (s ManyConfigInputSlice) Items(ctx context.Context) (r []InputConfig, err error) {
 	for j, input := range s {
-		if c, err := input.Config(ContextWithInputKey(ctx, "#"+strconv.Itoa(j))); err != nil {
+		ctx := ContextWithInputKey(ctx, "#"+strconv.Itoa(j))
+		if c, err := input.Config(ctx); err != nil {
 			return nil, fmt.Errorf("get config from input #%d (%q) failed: %v", j, input, err)
 		} else {
 			for _, c := range c {
@@ -134,7 +135,6 @@ func (i ManyConfigInput) Config(ctx context.Context) (configs []*InputConfig, er
 					err = errors.Wrapf(err, "parse prefix trimer count")
 					return
 				}
-				i.NameSpace = i.NameSpace[0:startPos] + "?" + i.NameSpace[endPos+1:]
 			}
 		}
 

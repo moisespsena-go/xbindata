@@ -22,10 +22,9 @@ import (
 	"path/filepath"
 
 	"github.com/moisespsena-go/assetfs"
+	"github.com/pkg/errors"
 
 	"github.com/gobwas/glob/syntax"
-
-	"github.com/moisespsena-go/error-wrap"
 
 	"github.com/moisespsena-go/xbindata"
 
@@ -38,7 +37,7 @@ var buildProgramCmd = &cobra.Command{
 	Args: func(cmd *cobra.Command, args []string) error {
 		fi, err := os.Stdin.Stat()
 		if err != nil {
-			return errwrap.Wrap(err, "stat of Stdin")
+			return errors.Wrapf(err, "stat of Stdin")
 		}
 
 		if fi.Mode()&os.ModeNamedPipe != 0 {
@@ -80,7 +79,7 @@ Examples:
 						return nil
 					})
 					if err != nil {
-						return errwrap.Wrap(err, "Walk %q", g.Dir())
+						return errors.Wrapf(err, "Walk %q", g.Dir())
 					}
 					continue largs
 				}
@@ -109,10 +108,10 @@ Examples:
 				}
 				if !filepath.IsAbs(arg) {
 					if arg, err = filepath.Abs(arg); err != nil {
-						return errwrap.Wrap(err, "filepath.Abs to %q", arg)
+						return errors.Wrapf(err, "filepath.Abs to %q", arg)
 					}
 					if args[i], err = filepath.Rel(cwd, arg); err != nil {
-						return errwrap.Wrap(err, "filepath.Rel to %q", arg)
+						return errors.Wrapf(err, "filepath.Rel to %q", arg)
 					}
 				}
 			}
@@ -128,7 +127,7 @@ Examples:
 
 		fi, err = os.Stdin.Stat()
 		if err != nil {
-			return errwrap.Wrap(err, "stat of Stdin")
+			return errors.Wrapf(err, "stat of Stdin")
 		}
 
 		if fi.Mode()&os.ModeNamedPipe != 0 {

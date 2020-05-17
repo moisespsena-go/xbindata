@@ -11,15 +11,13 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/moisespsena-go/error-wrap"
-	"github.com/moisespsena-go/path-helpers"
+	path_helpers "github.com/moisespsena-go/path-helpers"
 	"github.com/op/go-logging"
+	"github.com/pkg/errors"
 
 	"github.com/moisespsena-go/xbindata/xbreader"
 
-	"github.com/moisespsena-go/io-common"
-
-	"errors"
+	iocommon "github.com/moisespsena-go/io-common"
 
 	"github.com/moisespsena-go/xbindata/xbcommon"
 )
@@ -179,11 +177,11 @@ func (outlined *Outlined) ReadFile(pth string, ended ...bool) (err error) {
 		}
 		var outlinedSize uint32
 		if err = binary.Read(f, binaryDir, &outlinedSize); err != nil {
-			return errwrap.Wrap(err, "read size")
+			return errors.Wrapf(err, "read size")
 		}
 		// FILE_SIZE - OUTLINED_SIZE - SITE_BYTES (uint32 = 4)
 		if outlined.StartPos, err = f.Seek(s.Size()-int64(outlinedSize)-4, io.SeekStart); err != nil {
-			return errwrap.Wrap(err, "seek to start pos")
+			return errors.Wrapf(err, "seek to start pos")
 		}
 	}
 

@@ -76,7 +76,7 @@ func (this Finder) find(input *InputConfig, prefix string) (err error) {
 			}
 			asset.Name = path.Join(append(info.NamePrefix, asset.Name)...)
 			if len(namePrefix) > 0 {
-				asset.Name = strings.ReplaceAll(asset.Name, "?", path.Join(namePrefix...))
+				asset.Name = strings.ReplaceAll(asset.Name, fmt.Sprintf("(%d)", input.DirReplacesCount), path.Join(namePrefix...))
 			}
 		}
 

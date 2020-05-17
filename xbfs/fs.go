@@ -24,7 +24,7 @@ var (
 type FileSystem struct {
 	assetfsapi.AssetGetterInterface
 	assetfsapi.TraversableInterface
-	assets      *xbcommon.Assets
+	assets      xbcommon.NodeDir
 	root        *FileSystem
 	path        string
 	parent      *FileSystem
@@ -37,7 +37,7 @@ type FileSystem struct {
 	local.LocalSourcesAttribute
 }
 
-func NewFileSystem(assets *xbcommon.Assets) (fs *FileSystem) {
+func NewFileSystem(assets xbcommon.NodeDir) (fs *FileSystem) {
 	fs = &FileSystem{assets: assets}
 	fs.init()
 	return

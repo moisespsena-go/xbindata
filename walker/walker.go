@@ -1,7 +1,8 @@
 package walker
 
 import (
-	"github.com/moisespsena-go/error-wrap"
+	"github.com/pkg/errors"
+
 	"github.com/moisespsena-go/xbindata/ignore"
 	"os"
 	"path/filepath"
@@ -231,7 +232,7 @@ func (w Walker) walk(fi os.FileInfo, pth string, cb WalkCallback) (err error) {
 			}
 			continue
 		}
-		if err = errwrap.Wrap(w.walk(fi, pth, cb), "%q Walk failed", pth); err != nil {
+		if err = errors.Wrapf(w.walk(fi, pth, cb), "%q Walk failed", pth); err != nil {
 			return
 		}
 	}

@@ -30,8 +30,10 @@ func (p *Provider) Open(outlined string, start, size int64) (reader iocommon.Rea
 		size = info.Size()
 	}
 
-	if reader, err = iocommon.NewLimitedReader(f, start, size); err != nil {
+	if lr, err := iocommon.NewLimitedReader(f, start, size); err != nil {
 		return nil, err
+	} else {
+		reader = &iocommon.LimitedReadCloser{*lr, f}
 	}
 	return
 }
@@ -60,16 +62,21 @@ func (p *Provider) open(start, size int64) (reader iocommon.ReadSeekCloser, err 
 		return nil, err
 	} else if f, err := os.Open(executable); err != nil {
 		return nil, err
-	} else if reader, err = iocommon.NewLimitedReader(f, start, size); err != nil {
+	} else if lr, err := iocommon.NewLimitedReader(f, start, size); err != nil {
 		return nil, err
+	} else {
+		reader = &iocommon.LimitedReadCloser{*lr, f}
 	}
 	return
 }
 
 func (p *PulledProvider) Open(start, size int64) (reader iocommon.ReadSeekCloser, err error) {
 	if reader, err = p.pool.Get(); err == nil {
-		if reader, err = iocommon.NewLimitedReader(reader, start, size); err != nil {
+		if lr, err := iocommon.NewLimitedReader(reader, start, size); err != nil {
 			reader.Close()
+			return nil, err
+		} else {
+			reader = &iocommon.LimitedReadCloser{*lr, reader}
 		}
 	}
 	return
